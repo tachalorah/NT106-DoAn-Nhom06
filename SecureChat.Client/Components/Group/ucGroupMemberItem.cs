@@ -14,12 +14,12 @@ namespace SecureChat.Client.Components.Group
         private static readonly Color C_SUBTEXT = Color.FromArgb(0x89, 0x9A, 0xB4);
         private static readonly Color C_ROLE = Color.FromArgb(0x2A, 0xAB, 0xEE);
 
-        private PictureBox _avatar;
-        private Label _lblInitial;
-        private Label _lblName;
-        private Label _lblStatus;
-        private Label _lblRole;
-        private Panel _badge;
+        private PictureBox _avatar = null!;
+        private Label _lblInitial = null!;
+        private Label _lblName = null!;
+        private Label _lblStatus = null!;
+        private Label _lblRole = null!;
+        private Panel _badge = null!;
 
         public string DisplayName
         {
