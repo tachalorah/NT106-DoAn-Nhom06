@@ -7,6 +7,6 @@ namespace SecureChat.Client
         {
             ApplicationConfiguration.Initialize();
             Application.Run(new Forms.Chat.frmGroupInfo());
-        }
+       }
     }
 }
