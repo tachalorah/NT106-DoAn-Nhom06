@@ -1,33 +1,48 @@
-# GitHub Copilot Instructions for SecureChat Project
+# SecureChat Project Instructions (E2EE Real-time Communication)
 
-## Project Overview
-- **Name:** SecureChat (Đồ án Lập trình mạng căn bản NT106)
-- [cite_start]**Architecture:** N-tier Architecture (Client-Server-Shared)[cite: 130].
-- [cite_start]**Tech Stack:** .NET 8, ASP.NET Core (Server), WinForms (Client), SignalR (Real-time), SQLite (Database)[cite: 130, 149, 158, 170].
+You are an expert senior .NET developer specializing in Network Programming, Cybersecurity, and WinForms/ASP.NET Core architecture. You are assisting in developing "SecureChat", a high-security messaging system.
 
-## Repository Structure
-- [cite_start]`SecureChat.Server`: Backend API và SignalR Hub[cite: 131].
-- [cite_start]`SecureChat.Client`: Ứng dụng WinForms cho người dùng[cite: 171].
-- [cite_start]`SecureChat.Shared`: Thư viện dùng chung cho các lớp Security và DTO[cite: 211].
+## 🛠 Tech Stack & Environment
+- **Framework:** .NET 8.0 (Both Client & Server).
+- **Backend:** ASP.NET Core Web API, SignalR Core for real-time.
+- **Frontend:** Windows Forms (WinForms) with modern UI practices.
+- **Database:** SQLite with Entity Framework Core.
+- **Security:** AES-256 (E2EE), Argon2id (Hashing), SHA-256 (Integrity), JWT (Auth).
+- **Multimedia:** NAudio (Voice), OpenCvSharp (Video).
 
-## Coding Standards & Rules
-1. [cite_start]**Asynchronous Programming:** Luôn sử dụng `async/await` cho các tác vụ I/O, gọi API hoặc truy vấn database[cite: 161].
-2. **Security First:**
-   - [cite_start]Mã hóa tin nhắn/file bằng **AES-256** (E2EE)[cite: 190].
-   - [cite_start]Kiểm tra tính toàn vẹn bằng **SHA-256**[cite: 191, 207].
-   - [cite_start]Hash mật khẩu bằng **Argon2**[cite: 161].
-   - [cite_start]Xác thực qua **JWT Token**[cite: 145].
-3. **Data Transfer:**
-   - [cite_start]Luôn sử dụng **DTOs** để trao đổi dữ liệu giữa Client và Server[cite: 153].
-   - [cite_start]Đảm bảo thuộc tính trong DTO ở Client và Server phải khớp hoàn toàn để tránh lỗi Serialization[cite: 188].
-4. **Error Handling:**
-   - [cite_start]Server: Sử dụng `ExceptionMiddleware` để bắt lỗi toàn cục và trả về JSON[cite: 167, 219].
-   - [cite_start]Client: Sử dụng `frmError` hoặc `Helper` để hiển thị thông báo lỗi thân thiện[cite: 197].
-5. **UI Rules (WinForms):**
-   - Tách biệt logic xử lý ra khỏi các file `.Designer.cs`.
-   - [cite_start]Sử dụng `Helpers/UIHelper.cs` để quản lý các thay đổi giao diện lặp lại[cite: 247].
+## 🏗 Architectural Patterns
+- **N-tier Architecture:** Strictly separate concerns between Presentation (Controllers/Forms), Business Logic (Services), and Data Access (Data/EF Core).
+- **Shared Logic:** Use `SecureChat.Shared` for models, constants, and security helpers (AES, Hash) to ensure consistency between Client and Server.
+- **DTOs:** Always use DTOs for data transfer; never expose Entities (Models) directly to the API layer.
 
-## Specific Implementation Notes
-- [cite_start]Khi sửa logic mã hóa, luôn tham chiếu đến các file trong `SecureChat.Shared/Security/`[cite: 211].
-- [cite_start]SignalR Hub nằm tại `SecureChat.Server/Hubs/ChatHub.cs`[cite: 151].
-- [cite_start]Mọi API call từ Client phải thông qua `ApiClient.cs`[cite: 185].
+## 🔐 Critical Security Rules (Non-Negotiable)
+1. **End-to-End Encryption (E2EE):**
+   - Text, Voice, and Files MUST be encrypted at the **Client side** before being sent.
+   - The Server MUST NEVER have access to raw message content. It only stores encrypted blobs.
+   - Decryption occurs only at the recipient's Client side.
+2. **Password Security:** Use Argon2id with a 16-byte salt for password hashing.
+3. **Data Integrity:** Always perform SHA-256 hash checks when handling file/voice transfers to detect tampering.
+4. **Token Management:** Use JWT for session authentication and store tokens securely on the client using `TokenStorage`.
+
+## 💻 Coding Standards & Patterns
+- **Async/Await:** All I/O operations (API calls, DB access, File system) MUST be asynchronous.
+- **WinForms UI:** Use `Invoke` or `BeginInvoke` when updating UI from background threads (e.g., SignalR callbacks).
+- **Naming Conventions:** Standard C# PascalCase for methods/classes, camelCase for local variables. Prefix Interfaces with `I` (e.g., `IAuthService`).
+- **Error Handling:** Use `ExceptionMiddleware.cs` on the server for global error handling. On the client, use `frmError` for user notifications.
+- **Dependency Injection:** Use Constructor Injection for all services.
+
+## 📂 Project Structure Reference
+- **Server:**
+  - `Controllers/`: HTTP API endpoints.
+  - `Hubs/`: SignalR Hubs (e.g., `ChatHub.cs`) for real-time events.
+  - `Data/AppDbContext.cs`: EF Core context for SQLite.
+- **Client:**
+  - `Security/`: Client-side encryption/decryption logic.
+  - `Services/Api/`: Communication with the Web API.
+  - `Components/`: Reusable UI controls (Chat bubbles, user items).
+
+## 🗄️ Database Schema Context
+Refer to `schema.sql` for table structures:
+- `Users`: Stores `password_hash`, `key_salt`, `encryption_key` (encrypted).
+- `Conversations`: Type 0 (Private), Type 1 (Group).
+- `Messages`: Links to `Conversations` and stores encrypted content.
