@@ -11,7 +11,11 @@ namespace SecureChat.Client
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
-            Application.Run(new Form1());
+            // Application.Run(new TwoFAForm());
+            // Application.Run(new MainForm());
+            Application.Run(new frmLoginRegister());
+            // Application.Run(new ForgotPasswordForm());
+
         }
     }
 }
