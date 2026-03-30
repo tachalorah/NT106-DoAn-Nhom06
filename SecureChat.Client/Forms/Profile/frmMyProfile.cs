@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
 using System.Windows.Forms;
 using SecureChat.Client.Models;
 
@@ -70,6 +71,9 @@ namespace SecureChat.Client.Forms.Profile
             _avatar.Controls.Add(_lblInitial);
 
             _btnEdit = FlatIconButton("Edit");
+            _btnEdit.Image = LoadIcon("profile_manage.png");
+            _btnEdit.ImageAlign = ContentAlignment.MiddleLeft;
+            _btnEdit.TextImageRelation = TextImageRelation.ImageBeforeText;
             _btnEdit.Click += (_, __) => OpenDetails();
 
             _btnClose = FlatIconButton("X");
@@ -179,7 +183,7 @@ namespace SecureChat.Client.Forms.Profile
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
                 ForeColor = C_TEXT,
-                Font = new Font("Segoe UI Symbol", 11f, FontStyle.Bold),
+                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
                 TabStop = false,
                 Cursor = Cursors.Hand,
                 UseCompatibleTextRendering = true,
@@ -189,6 +193,22 @@ namespace SecureChat.Client.Forms.Profile
             b.FlatAppearance.MouseOverBackColor = Color.FromArgb(20, 255, 255, 255);
             b.FlatAppearance.MouseDownBackColor = Color.FromArgb(30, 255, 255, 255);
             return b;
+        }
+
+        private static Image? LoadIcon(string fileName)
+        {
+            try
+            {
+                var path = Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "profile", fileName);
+                if (!File.Exists(path)) return null;
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var img = Image.FromStream(fs);
+                return new Bitmap(img);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private void LayoutDynamic()

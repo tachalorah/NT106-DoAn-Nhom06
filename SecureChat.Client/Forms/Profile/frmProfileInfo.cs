@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using SecureChat.Client.Models;
+using System.IO;
 
 namespace SecureChat.Client.Forms.Profile
 {
@@ -55,10 +56,14 @@ namespace SecureChat.Client.Forms.Profile
             Font = new Font("Segoe UI", 10f);
             DoubleBuffered = true;
 
-            _btnBack = FlatIconButton("Back");
+            _btnBack = FlatIconButton("<< Back");
+            _btnBack.Image = null;
+            _btnBack.TextImageRelation = TextImageRelation.Overlay;
             _btnBack.Click += (_, __) => Close();
 
             _btnClose = FlatIconButton("X");
+            _btnClose.Image = null;
+            _btnClose.TextImageRelation = TextImageRelation.Overlay;
             _btnClose.Click += (_, __) => Close();
 
             _avatar = new PictureBox
@@ -308,6 +313,22 @@ namespace SecureChat.Client.Forms.Profile
             b.FlatAppearance.MouseOverBackColor = Color.FromArgb(20, 255, 255, 255);
             b.FlatAppearance.MouseDownBackColor = Color.FromArgb(30, 255, 255, 255);
             return b;
+        }
+
+        private static Image? LoadIcon(string fileName)
+        {
+            try
+            {
+                var path = Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "profile", fileName);
+                if (!File.Exists(path)) return null;
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var img = Image.FromStream(fs);
+                return new Bitmap(img);
+            }
+            catch
+            {
+                return null;
+            }
         }
     }
 }
