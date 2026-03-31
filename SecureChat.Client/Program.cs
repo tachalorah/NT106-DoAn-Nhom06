@@ -11,17 +11,11 @@ namespace SecureChat.Client
         static void Main()
         {
             ApplicationConfiguration.Initialize();
-
-            var sampleProfile = new ProfileModel
-            {
-                FullName = "Hoàng Hi?u",
-                PhoneNumber = "+84 903187536",
-                Username = "hoanghieu",
-                Birthday = new DateTime(1998, 5, 12),
-                StatusText = "online"
-            };
-
-            Application.Run(new frmSettings(sampleProfile));
+            // Application.Run(new TwoFAForm());
+            // Application.Run(new frmMainChat());
+             // Application.Run(new frmLoginRegister());
+             Application.Run(new frmForgot());
+            //  Application.Run(new frmContacts());
         }
     }
 }
