@@ -1,3 +1,4 @@
+using SecureChat.Client;
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -37,16 +38,27 @@ namespace SecureChat.Client
 
         public static GraphicsPath GetRoundedPath(Rectangle rect, int radius)
         {
-            // Thêm dòng này
-            if (radius <= 0)
+            var path = new GraphicsPath();
+
+            // Guard: invalid rectangle -> trả về path rỗng
+            if (rect.Width <= 0 || rect.Height <= 0)
             {
-                var p = new GraphicsPath();
-                p.AddRectangle(rect);
-                return p;
+                return path;
             }
 
-            var path = new GraphicsPath();
-            int d = radius * 2;
+            // Clamp radius vào khoảng hợp lệ: không lớn hơn nửa width/height
+            int maxRadius = Math.Min(rect.Width / 2, rect.Height / 2);
+            int r = Math.Clamp(radius, 0, maxRadius);
+
+            // Nếu radius == 0 thì dùng rectangle thay vì gọi AddArc với kích thước 0
+            if (r <= 0)
+            {
+                path.AddRectangle(rect);
+                path.CloseFigure();
+                return path;
+            }
+
+            int d = r * 2;
             path.AddArc(rect.X, rect.Y, d, d, 180, 90);
             path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
             path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
@@ -182,10 +194,10 @@ namespace SecureChat.Client
     // ─────────────────────────────────────────────
     public class TelegramTextBox : Panel
     {
-        private TextBox _tb;
-        private string _placeholder;
+        private TextBox _tb = null!;
+        private string? _placeholder;
         private bool _isFocused;
-        private Label _placeholderLabel;
+        private Label _placeholderLabel = null!;
 
         public string Text { get => _tb.Text; set => _tb.Text = value; }
         public char PasswordChar { get => _tb.PasswordChar; set => _tb.PasswordChar = value; }
@@ -258,11 +270,11 @@ namespace SecureChat.Client
         protected override void OnLayout(LayoutEventArgs e)
         {
             base.OnLayout(e);
+
+            // Guard: chưa khởi tạo xong thì bỏ qua
+            if (_tb == null || _placeholderLabel == null) return;
+
             int pad = 12;
-
-            // Thêm dòng này để tránh null crash
-            if (_tb == null) return;
-
             int tbHeight = _tb.PreferredHeight;
             _tb.SetBounds(pad, (Height - tbHeight) / 2, Width - pad * 2, tbHeight);
             _placeholderLabel.SetBounds(0, 0, Width, Height);
@@ -282,15 +294,7 @@ namespace SecureChat.Client
 
         public string Title { get => _lblTitle.Text; set => _lblTitle.Text = value; }
         public string Subtitle { get => _lblSubtitle.Text; set { _lblSubtitle.Text = value; _lblSubtitle.Visible = !string.IsNullOrEmpty(value); } }
-        public bool ShowBack
-        {
-            get => _btnBack.Visible;
-            set
-            {
-                _btnBack.Visible = value;
-                PerformLayout(); // ← thay OnResize(null) bằng cái này
-            }
-        }
+        public bool ShowBack { get => _btnBack.Visible; set => _btnBack.Visible = value; }
         public event EventHandler BackClicked { add => _btnBack.Click += value; remove => _btnBack.Click -= value; }
 
         public TelegramHeader()
@@ -341,24 +345,22 @@ namespace SecureChat.Client
             Controls.AddRange(new Control[] { _btnBack, _avatar, _lblTitle, _lblSubtitle, _rightPanel });
         }
 
-        protected override void OnLayout(LayoutEventArgs e)
+        protected override void OnResize(EventArgs e)
         {
-            base.OnLayout(e);
-            if (_btnBack == null || _lblTitle == null) return;
+            base.OnResize(e);
+
+            // Guard: OnResize có thể được gọi trước khi các field được khởi tạo trong ctor
+            if (_btnBack == null || _avatar == null || _lblTitle == null || _lblSubtitle == null || _rightPanel == null)
+                return;
 
             int leftX = _btnBack.Visible ? 44 : 12;
-            if (_avatar != null && _avatar.Visible)
-            {
-                _avatar.Location = new Point(leftX, 8);
-                leftX += 44;
-            }
-            _lblTitle.SetBounds(leftX,
-                (_lblSubtitle != null && _lblSubtitle.Visible) ? 6 : 12,
-                Width - leftX - 90, 28);
-            if (_lblSubtitle != null)
-                _lblSubtitle.SetBounds(leftX, 30, Width - leftX - 90, 18);
-            if (_rightPanel != null)
-                _rightPanel.SetBounds(Width - 90, 0, 90, Height);
+            if (_avatar.Visible) { _avatar.Location = new Point(leftX, 8); leftX += 44; }
+
+            // đảm bảo width không âm
+            int availableWidth = Math.Max(0, Width - leftX - 90);
+            _lblTitle.SetBounds(leftX, _lblSubtitle.Visible ? 6 : 12, availableWidth, 28);
+            _lblSubtitle.SetBounds(leftX, 30, availableWidth, 18);
+            _rightPanel.SetBounds(Math.Max(0, Width - 90), 0, 90, Height);
         }
 
         public void SetAvatar(string name) { _avatar.SetName(name); _avatar.Visible = true; OnResize(null); }
