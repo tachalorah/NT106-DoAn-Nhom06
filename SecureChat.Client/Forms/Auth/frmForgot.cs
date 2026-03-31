@@ -1,43 +1,44 @@
+using NAudio.Gui;
 using System;
 using System.Drawing;
 using System.Windows.Forms;
 
 namespace SecureChat.Client
 {
-    /// <summary>
+
     /// Màn hình quên mật khẩu - 3 bước: Email → OTP → Mật khẩu mới
-    /// </summary>
+
     public class frmForgot : Form
     {
         private int _step = 1; // 1=email, 2=otp, 3=newpass
 
         private Panel _pnlMain; // thêm vào chỗ khai báo field
 
-        // Step indicators
         // Mảng 3 chấm tròn hiển thị tiến trình (Step 1 → 2 → 3). Mỗi chấm là một Panel tự vẽ.
         private Panel[] _stepDots = new Panel[3];
+
         // Tiêu đề lớn và mô tả nhỏ thay đổi theo từng bước.
-        private Label   _lblStepTitle, _lblStepDesc;
+        private Label _lblStepTitle, _lblStepDesc;
 
         // Step 1
         private TelegramTextBox _tbEmail; // _tbEmail: ô nhập địa chỉ email
-        private Label           _lblEmailHint; // _lblEmailHint: thông báo màu xanh lá "Link có hiệu lực 15 phút…" (ẩn ban đầu)
+        private Label _lblEmailHint; // _lblEmailHint: thông báo màu xanh lá "Link có hiệu lực 15 phút…" (ẩn ban đầu)
 
         // Step 2
-        private Panel           _pnlOtp; // panel chứa 6 ô nhập OTP
-        private TextBox[]       _otpBoxes = new TextBox[6]; // mảng 6 ô TextBox, mỗi ô 1 chữ số
+        private Panel _pnlOtp; // panel chứa 6 ô nhập OTP
+        private TextBox[] _otpBoxes = new TextBox[6]; // mảng 6 ô TextBox, mỗi ô 1 chữ số
         private System.Windows.Forms.Timer _timer; // đồng hồ đếm ngược 60 giây
-        private int             _countdown = 60; // giá trị đếm ngược hiện tại
-        private Label           _lblCountdown; // nhãn hiển thị "Gửi lại sau (Xs)"
+        private int _countdown = 60; // giá trị đếm ngược hiện tại
+        private Label _lblCountdown; // nhãn hiển thị "Gửi lại sau (Xs)"
 
         // Step 3: Hai ô nhập mật khẩu mới và xác nhận mật khẩu.
         private TelegramTextBox _tbNewPass, _tbConfirmPass;
 
         // Common
-        private TelegramButton  _btnNext, _btnBack;
-        private Label           _lblError;
-        private Panel           _pnlContent;
-        private TelegramHeader  _header;
+        private TelegramButton _btnNext, _btnBack;
+        private Label _lblError;
+        private Panel _pnlContent;
+        private TelegramHeader _header;
 
         public frmForgot()
         {
@@ -47,11 +48,11 @@ namespace SecureChat.Client
 
         private void InitializeComponent()
         {
-            Text = "Đặt lại mật khẩu";
+            Text = "Đặt lại mật khẩu"; // tên form
             Size = new Size(400, 520);
             MinimumSize = new Size(380, 490);
-            StartPosition = FormStartPosition.CenterParent;
-            // FormBorderStyle = FormBorderStyle.FixedSingle;
+            // StartPosition = FormStartPosition.CenterParent;
+            //  FormBorderStyle = FormBorderStyle.FixedSingle;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = false;
             BackColor = Color.White;
@@ -59,61 +60,91 @@ namespace SecureChat.Client
 
             // Header
             _header = new TelegramHeader { Title = "Đặt lại mật khẩu" };
-            _header.ShowBack = true;
+            _header.ShowBack = true; // Hiển thị nút Back (mũi tên quay lại)
             _header.BackClicked += (s, e) =>
             {
-                if (_step > 1) ShowStep(_step - 1);
-                else Close();
+                if (_step > 1) ShowStep(_step - 1); // nếu đang ở bước 2 hoặc 3 thì quay về bước trước
+                else Close(); // nếu đang ở bước 1 thì đóng form
             };
-            Controls.Add(_header);
+            Controls.Add(_header); // Thêm header vào form
 
             // Step indicator
+            // Panel nằm ngang chứa 3 chấm tròn, cao 48px
             var pnlSteps = new Panel { Height = 48, BackColor = Color.White };
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 3; i++) // Vòng lặp tạo 3 chấm
             {
-                int idx = i;
-                var dot = new Panel { Size = new Size(28, 28), BackColor = Color.Transparent };
+                int idx = i; // tránh bug closure
+                // Mỗi chấm là một Panel 28×28px, trong suốt (để tự vẽ hình tròn bên trong).
+                var dot = new Panel
+                {
+                    Size = new Size(28, 28),
+                    BackColor = Color.Transparent
+                };
+                // Thay vì dùng giao diện mặc định, mình can thiệp vào quá trình vẽ của  dot.
                 dot.Paint += (s, e) =>
                 {
+                    // e.Graphics: Là "cây bút vẽ" chính để thao tác trên bề mặt của Control.
+                    // SmoothingMode.AntiAlias: Bật chế độ khử răng cưa để hình tròn trông mượt mà, không bị vỡ nét ở rìa.
                     e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                    bool active = _step == idx + 1;
-                    bool done   = _step > idx + 1;
+                    bool active = _step == idx + 1; //  (Đang thực hiện): Nếu bước hiện tại khớp với vị trí của chấm này.
+                    bool done = _step > idx + 1; // (Đã hoàn thành): Nếu bước hiện tại đã vượt qua vị trí của chấm này.
+
+                    // Nếu đã xong hoặc đang làm: Tô màu xanh(TG.Blue).
+                    // Nếu chưa tới: Tô màu xám chia cắt(TG.Divider).
                     Color bg = done ? TG.Blue : active ? TG.Blue : TG.Divider;
+
+                    // Vẽ hình tròn đặc màu bg.
+                    // Vẽ tại tọa độ (0,0) với kích thước 27x27 pixels.
                     e.Graphics.FillEllipse(new SolidBrush(bg), 0, 0, 27, 27);
+
+                    // Nếu đã xong(done): Hiển thị dấu tích "✓".
+                    // Nếu chưa xong: Hiển thị số thứ tự (idx + 1): (1, 2, 3).
                     string txt = done ? "✓" : (idx + 1).ToString();
+
+                    // Vẽ chữ màu trắng, canh giữa cả ngang lẫn dọc trong ô 28×28.
                     using var sf = new System.Drawing.StringFormat { Alignment = System.Drawing.StringAlignment.Center, LineAlignment = System.Drawing.StringAlignment.Center };
                     e.Graphics.DrawString(txt, TG.FontSemiBold(9f), System.Drawing.Brushes.White, new Rectangle(0, 0, 28, 28), sf);
                 };
+                // Lưu vào mảng và thêm vào panel.
                 _stepDots[i] = dot;
                 pnlSteps.Controls.Add(dot);
             }
-            // Connecting lines
+
+            // Vẽ đường nối giữa các chấm + đổi màu
             pnlSteps.Paint += (s, e) =>
             {
-                int lineY = 24 + pnlSteps.Padding.Top;
-                int[] xs = GetDotXs(pnlSteps.Width);
+                int lineY = 24 + pnlSteps.Padding.Top; // tọa độ y để vẽ ngang giữa Dot = 
+                int[] xs = GetDotXs(pnlSteps.Width); // trả về một mảng tọa độ X (ngang) của 3 chấm tròn
+
+                // Nếu _step > 1(đã xong bước 1), đường kẻ màu xanh(TG.Blue), ngược lại màu xám(TG.Divider)
+                // Bắt đầu từ mép phải của chấm 1 (xs[0] + 28) và kéo dài đến mép trái của chấm 2 (xs[1])
                 e.Graphics.DrawLine(new System.Drawing.Pen(_step > 1 ? TG.Blue : TG.Divider, 2), xs[0] + 28, lineY, xs[1], lineY);
+
                 e.Graphics.DrawLine(new System.Drawing.Pen(_step > 2 ? TG.Blue : TG.Divider, 2), xs[1] + 28, lineY, xs[2], lineY);
             };
+
+            // Khi panel thay đổi kích thước, tính lại vị trí 3 chấm và vẽ lại.
             pnlSteps.Resize += (s, e) =>
             {
                 int[] xs = GetDotXs(pnlSteps.Width);
                 for (int i = 0; i < 3; i++) _stepDots[i].Location = new Point(xs[i], 10);
-                pnlSteps.Invalidate();
+                pnlSteps.Invalidate(); // Invalidate() sẽ kích hoạt lại sự kiện Paint
             };
 
             // Step labels
-            _lblStepTitle = new Label
+            _lblStepTitle = new Label // lưu tiêu đề lớn của từng bước
             {
-                AutoSize = false, Height = 26,
+                AutoSize = false,
+                Height = 26,
                 Font = TG.FontSemiBold(12f),
                 ForeColor = TG.TextPrimary,
                 BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleCenter,
             };
-            _lblStepDesc = new Label
+            _lblStepDesc = new Label //  lưu mô tả nhỏ bên dưới tiêu đề
             {
-                AutoSize = false, Height = 36,
+                AutoSize = false,
+                Height = 36,
                 Font = TG.FontRegular(9f),
                 ForeColor = TG.TextSecondary,
                 BackColor = Color.Transparent,
@@ -125,15 +156,19 @@ namespace SecureChat.Client
 
             // ── Step 1: Email ─────────────────────────
             var lblEmail = new Label { Text = "Địa chỉ email đã đăng ký:", Font = TG.FontRegular(8.5f), ForeColor = TG.Blue, AutoSize = false, Height = 18, BackColor = Color.Transparent };
+
+            // Ô nhập email cao 44px, có placeholder gợi ý.
             _tbEmail = new TelegramTextBox { Height = 44 };
             _tbEmail.SetPlaceholder("user@example.com");
+
             _lblEmailHint = new Label
             {
                 Text = "📧  Link đặt lại có hiệu lực trong 15 phút. Kiểm tra cả thư mục spam.",
                 Font = TG.FontRegular(8.5f),
-                ForeColor = Color.FromArgb(0x2E, 0x7D, 0x32),
-                BackColor = Color.FromArgb(0xE8, 0xF5, 0xE9),
-                AutoSize = false, Height = 52,
+                ForeColor = Color.FromArgb(0x2E, 0x7D, 0x32), // chữ xanh lá đậm
+                BackColor = Color.FromArgb(0xE8, 0xF5, 0xE9), // xanh lá nhạt (nền)
+                AutoSize = false,
+                Height = 52,
                 Padding = new Padding(10, 8, 10, 0),
                 Visible = false,
             };
@@ -145,7 +180,7 @@ namespace SecureChat.Client
                 int idx = i;
                 var box = new TextBox
                 {
-                    MaxLength = 1,
+                    MaxLength = 1, // giới hạn mỗi ô chỉ nhận đúng 1 ký tự.
                     Font = TG.FontTitle(16f),
                     ForeColor = TG.Blue,
                     TextAlign = HorizontalAlignment.Center,
@@ -153,14 +188,19 @@ namespace SecureChat.Client
                     Size = new Size(42, 50),
                     BackColor = Color.White,
                 };
+
+                // Khi gõ 1 ký tự vào ô hiện tại và chưa phải ô cuối(idx < 5) → tự động chuyển focus sang ô kế tiếp.
                 box.TextChanged += (s, e) =>
                 {
                     if (!string.IsNullOrEmpty(box.Text) && idx < 5) _otpBoxes[idx + 1].Focus();
                 };
+
+                // Khi nhấn Backspace mà ô đang trống và không phải ô đầu → quay lại ô trước (xóa lùi tự nhiên)
                 box.KeyDown += (s, e) =>
                 {
                     if (e.KeyCode == Keys.Back && string.IsNullOrEmpty(box.Text) && idx > 0) _otpBoxes[idx - 1].Focus();
                 };
+
                 _pnlOtp.Controls.Add(box);
                 _otpBoxes[i] = box;
             }
@@ -169,6 +209,9 @@ namespace SecureChat.Client
                 if (_pnlOtp.Width == 0) return;
                 int total = 6 * 42 + 5 * 6, startX = (_pnlOtp.Width - total) / 2;
                 for (int i = 0; i < 6; i++) _otpBoxes[i].Location = new Point(startX + i * 48, 4);
+                // total = tổng chiều rộng: 6 ô × 42px + 5 khoảng cách × 6px = 282px
+                // startX = điểm bắt đầu để canh giữa trong panel
+                // Mỗi ô cách nhau 48px (42px ô + 6px gap), dịch xuống 4px từ trên
             };
 
             _pnlOtp.Resize += (s, e) => layoutOtp();
@@ -176,11 +219,18 @@ namespace SecureChat.Client
 
             _lblCountdown = new Label
             {
-                AutoSize = false, Height = 22, TextAlign = ContentAlignment.MiddleCenter,
-                Font = TG.FontRegular(8.5f), ForeColor = TG.TextSecondary, BackColor = Color.Transparent,
+                AutoSize = false,
+                Height = 22,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Font = TG.FontRegular(8.5f),
+                ForeColor = TG.TextSecondary,
+                BackColor = Color.Transparent,
             };
-            _timer = new System.Windows.Forms.Timer { Interval = 1000 };
+            _timer = new System.Windows.Forms.Timer { Interval = 1000 }; // Timer tick mỗi 1000ms = 1 giây.
+
+            // Mỗi tick: giảm đếm ngược 1, cập nhật label, dừng timer khi về 0.
             _timer.Tick += (s, e) => { _countdown--; UpdateCountdown(); if (_countdown <= 0) _timer.Stop(); };
+
 
             // ── Step 3: New Password ──────────────────
             var lblNew = new Label { Text = "Mật khẩu mới:", Font = TG.FontRegular(8.5f), ForeColor = TG.Blue, AutoSize = false, Height = 18, BackColor = Color.Transparent };
@@ -196,9 +246,13 @@ namespace SecureChat.Client
             // Error
             _lblError = new Label
             {
-                AutoSize = false, Height = 20, TextAlign = ContentAlignment.MiddleCenter,
+                AutoSize = false,
+                Height = 20,
+                TextAlign = ContentAlignment.MiddleCenter,
                 ForeColor = Color.FromArgb(0xE2, 0x4B, 0x4A),
-                Font = TG.FontRegular(8.5f), BackColor = Color.Transparent, Visible = false,
+                Font = TG.FontRegular(8.5f),
+                BackColor = Color.Transparent,
+                Visible = false,
             };
 
             // Buttons
@@ -214,28 +268,37 @@ namespace SecureChat.Client
                 lblNew, _tbNewPass, lblConf, _tbConfirmPass,
             });
 
+            // Panel bọc ngoài fill toàn form, padding 28px hai bên.Mỗi lần resize → tính lại layout.
             _pnlMain = new Panel { BackColor = Color.White, Padding = new Padding(28, 12, 28, 20) };
             _pnlMain.Controls.AddRange(new Control[] { _lblStepTitle, _lblStepDesc, pnlSteps, _pnlContent, _lblError, _btnNext });
             _pnlMain.Dock = DockStyle.Fill;
             _pnlMain.Resize += (s, e) => DoLayout(_pnlMain);
 
+            // Thêm panel chính và header vào form. Header thêm sau nên nằm trên cùng (Z-order cao hơn).
             Controls.AddRange(new Control[] { _pnlMain, _header });
         }
 
+        // Tính vị trí 3 chấm
+        // Canh 3 chấm đối xứng quanh tâm panel. Khoảng cách giữa các chấm = 46px (28px chấm + 18px đường nối).
         private int[] GetDotXs(int panelWidth)
         {
             int center = panelWidth / 2;
             return new[] { center - 60, center - 14, center + 32 };
         }
 
+        // Chuyển bước
         private void ShowStep(int step)
         {
             _step = step;
             HideError();
 
-            // Refresh step dots
+            // Duyệt qua tất cả các chấm tròn(dot) và ra lệnh cho chúng vẽ lại.
+            // Khi bạn thay đổi biến _step(ví dụ từ bước 1 sang bước 2), các chấm tròn cần biết chúng phải đổi từ màu xám sang xanh, hoặc từ số "2" thành dấu "✓".
+            // Gọi Invalidate() sẽ kích hoạt sự kiện.Paint của từng chấm mà bạn đã viết trước đó.
             foreach (var d in _stepDots) d.Invalidate();
             if (_stepDots[0].Parent != null) _stepDots[0].Parent.Invalidate();
+            // Invalidate() báo cho Windows vẽ lại chấm tròn và đường nối (vì màu sắc thay đổi theo _step).
+            // Việc kiểm tra != null giúp code không bị văng lỗi (Crash) nếu chẳng may các chấm tròn này chưa được add vào Panel nào đó tại thời điểm chạy.
 
             switch (step)
             {
@@ -334,7 +397,17 @@ namespace SecureChat.Client
                 case 1:
                     if (string.IsNullOrWhiteSpace(_tbEmail.Text)) { ShowError("Vui lòng nhập địa chỉ email."); return; }
                     if (!_tbEmail.Text.Contains("@")) { ShowError("Email không hợp lệ."); return; }
-                    _lblEmailHint.Visible = true;
+
+                    if (!_lblEmailHint.Visible)
+                    {
+                        // Lần nhấn đầu: hiện hint, đổi text nút
+                        _lblEmailHint.Visible = true;
+                        _btnNext.Text = "TIẾP THEO";
+                        DoLayout(_pnlMain);
+                        return; // ← chưa chuyển bước
+                    }
+
+                    // Lần nhấn thứ 2: chuyển sang bước 2
                     ShowStep(2);
                     break;
                 case 2:

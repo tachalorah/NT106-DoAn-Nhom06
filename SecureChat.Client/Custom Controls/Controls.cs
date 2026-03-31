@@ -270,16 +270,7 @@ namespace SecureChat.Client
         }
     }
 
-    // ─────────────────────────────────────────────
-    // TELEGRAM HEADER (ĐÃ FIX “chữ danh bạ bị thụt vô”)
-    // ─────────────────────────────────────────────
 
-    // ─────────────────────────────────────────────
-    // TELEGRAM HEADER (FIX LẦN 2 – padding lớn hơn)
-    // ─────────────────────────────────────────────
-    // ─────────────────────────────────────────────
-    // TELEGRAM HEADER (FIX LẦN 3 – padding rộng hơn)
-    // ─────────────────────────────────────────────
     public class TelegramHeader : Panel
     {
         private Label _lblTitle;
@@ -371,7 +362,8 @@ namespace SecureChat.Client
         {
             if (_btnBack == null || _lblTitle == null) return;
 
-            // Nếu có nút Back (rộng 52px), nhích chữ ra mốc 52px. Không bị đè, không "thụt vô".
+            // Tọa độ X: 52 là vừa sát mép nút Back. 
+            // Nếu bạn muốn chữ "Danh bạ" xích lại gần mũi tên ← hơn một chút nữa, có thể đổi 52 thành 48 hoặc 44.
             int leftX = _showBack ? 52 : 16;
 
             if (_avatar.Visible)
@@ -384,10 +376,13 @@ namespace SecureChat.Client
 
             int availableWidth = Math.Max(0, Width - leftX - 100);
 
-            // Nếu không có sub-title thì Title căn giữa theo chiều dọc
-            int titleY = string.IsNullOrEmpty(_lblSubtitle.Text) ? (Height - 24) / 2 : 6;
+            // CHỈNH Y Ở ĐÂY:
+            // Thêm "- 4" (hoặc - 6) vào phép tính để kéo chữ nhích lên trên cho ngang hàng với mũi tên.
+            // Nếu có subtitle thì đổi từ 6 thành 4 để kéo cụm chữ lên.
+            int titleY = string.IsNullOrEmpty(_lblSubtitle.Text) ? ((Height - 24) / 2) - 4 : 4;
 
-            _lblTitle.SetBounds(leftX, titleY, availableWidth, 24);
+            // Tăng Height của Label lên 28 (thay vì 24) để đảm bảo phần chân chữ (như chữ p, y, g) không bị cắt lẹm
+            _lblTitle.SetBounds(leftX, titleY, availableWidth, 28);
             _lblSubtitle.SetBounds(leftX, 30, availableWidth, 18);
             _rightPanel.SetBounds(Math.Max(0, Width - 100), 0, 100, Height);
         }
