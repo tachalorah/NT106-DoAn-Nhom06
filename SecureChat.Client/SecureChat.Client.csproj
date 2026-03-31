@@ -30,4 +30,8 @@
 		<ProjectReference Include="..\SecureChat.Shared\SecureChat.Shared.csproj" />
 	</ItemGroup>
 
+  <ItemGroup>
+    <None Include="Resources\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

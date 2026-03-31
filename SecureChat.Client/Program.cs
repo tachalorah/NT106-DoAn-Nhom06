@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Forms;
-using SecureChat.Client.Forms.Profile;
 using SecureChat.Client.Models;
+using SecureChat.Client.Forms.Settings;
 
 namespace SecureChat.Client
 {
