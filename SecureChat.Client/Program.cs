@@ -1,15 +1,15 @@
+using System;
+using System.Windows.Forms;
+using SecureChat.Client.Forms.Profile;
+using SecureChat.Client.Models;
+
 namespace SecureChat.Client
 {
     internal static class Program
     {
-        /// <summary>
-        ///  The main entry point for the application.
-        /// </summary>
         [STAThread]
         static void Main()
         {
-            // To customize application configuration such as set high DPI settings or default font,
-            // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
             // Application.Run(new TwoFAForm());
             // Application.Run(new MainForm());

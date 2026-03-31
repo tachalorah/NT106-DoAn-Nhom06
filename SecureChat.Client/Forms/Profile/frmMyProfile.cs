@@ -1,0 +1,214 @@
+using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Windows.Forms;
+using SecureChat.Client.Models;
+
+namespace SecureChat.Client.Forms.Profile
+{
+    public partial class frmMyProfile : Form
+    {
+        private void InitializeComponent() { /* built in code */ }
+
+        private static readonly Color C_BG = Color.FromArgb(0x14, 0x1D, 0x27);
+        private static readonly Color C_TEXT = Color.FromArgb(0xF5, 0xF5, 0xF5);
+        private static readonly Color C_SUB = Color.FromArgb(0x89, 0x9A, 0xB4);
+        private static readonly Color C_ACCENT = Color.FromArgb(0x2A, 0xAB, 0xEE);
+
+        private readonly ProfileModel _profile;
+
+        private PictureBox _avatar = null!;
+        private Label _lblInitial = null!;
+        private Label _lblName = null!;
+        private Label _lblStatus = null!;
+        private Label _lblPhone = null!;
+        private Label _lblPhoneType = null!;
+        private Button _btnEdit = null!;
+        private Button _btnClose = null!;
+
+        public frmMyProfile(ProfileModel profile)
+        {
+            _profile = profile ?? throw new ArgumentNullException(nameof(profile));
+            InitializeComponent();
+            BuildUI();
+            LoadProfile(profile);
+            Resize += (_, __) => LayoutDynamic();
+            LayoutDynamic();
+        }
+
+        private void BuildUI()
+        {
+            Text = "My Profile";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            HelpButton = false;
+            ControlBox = false;
+            StartPosition = FormStartPosition.CenterParent;
+            ClientSize = new Size(520, 380);
+            BackColor = C_BG;
+            Font = new Font("Segoe UI", 10f, GraphicsUnit.Point);
+            DoubleBuffered = true;
+
+            _avatar = new PictureBox
+            {
+                Size = new Size(112, 112),
+                BackColor = Color.FromArgb(0xFF, 0x6B, 0x81),
+                SizeMode = PictureBoxSizeMode.Zoom,
+            };
+            _avatar.Paint += (_, __) => ClipCircle(_avatar);
+
+            _lblInitial = new Label
+            {
+                Dock = DockStyle.Fill,
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI Semibold", 32f, GraphicsUnit.Point),
+                BackColor = Color.Transparent,
+                AutoSize = false,
+            };
+            _avatar.Controls.Add(_lblInitial);
+
+            _btnEdit = FlatIconButton("Edit");
+            _btnEdit.Click += (_, __) => OpenDetails();
+
+            _btnClose = FlatIconButton("X");
+            _btnClose.Click += (_, __) => Close();
+
+            _lblName = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI Semibold", 13.5f, GraphicsUnit.Point),
+                ForeColor = C_TEXT,
+                BackColor = Color.Transparent,
+            };
+            _lblStatus = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10.5f, GraphicsUnit.Point),
+                ForeColor = C_ACCENT,
+                BackColor = Color.Transparent,
+            };
+
+            _lblPhone = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI", 10.5f, GraphicsUnit.Point),
+                ForeColor = C_TEXT,
+                BackColor = Color.Transparent,
+            };
+
+            _lblPhoneType = new Label
+            {
+                AutoSize = true,
+                Font = new Font("Segoe UI", 9.5f, GraphicsUnit.Point),
+                ForeColor = C_SUB,
+                BackColor = Color.Transparent,
+                Text = "Mobile",
+            };
+
+            Controls.AddRange(new Control[]
+            {
+                _avatar, _btnEdit, _btnClose,
+                _lblName, _lblStatus,
+                _lblPhone, _lblPhoneType,
+            });
+        }
+
+        private void LoadProfile(ProfileModel profile)
+        {
+            _lblName.Text = profile.FullName;
+            _lblStatus.Text = profile.StatusText;
+            _lblPhone.Text = profile.PhoneNumber;
+            _lblInitial.Text = GetInitials(profile.FullName);
+            LayoutDynamic();
+        }
+
+        private void OpenDetails()
+        {
+            try
+            {
+                using var dlg = new frmProfileInfo(_profile);
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    LoadProfile(_profile); // reload updated info
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static string GetInitials(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "?";
+            var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 1)
+            {
+                var first = GetFirstGrapheme(parts[0]);
+                var second = parts[0].Length > first.Length ? GetFirstGrapheme(parts[0].Substring(first.Length)) : string.Empty;
+                return (first + second).ToUpperInvariant();
+            }
+            var firstWord = GetFirstGrapheme(parts[0]);
+            var lastWord = GetFirstGrapheme(parts[^1]);
+            return (firstWord + lastWord).ToUpperInvariant();
+        }
+
+        private static string GetFirstGrapheme(string text)
+        {
+            var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(text);
+            return enumerator.MoveNext() ? enumerator.GetTextElement() : string.Empty;
+        }
+
+        private static void ClipCircle(PictureBox pb)
+        {
+            using var path = new GraphicsPath();
+            path.AddEllipse(0, 0, pb.Width, pb.Height);
+            pb.Region = new Region(path);
+        }
+
+        private static Button FlatIconButton(string text)
+        {
+            var b = new Button
+            {
+                Text = text,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = C_TEXT,
+                Font = new Font("Segoe UI Symbol", 11f, FontStyle.Bold),
+                TabStop = false,
+                Cursor = Cursors.Hand,
+                UseCompatibleTextRendering = true,
+                Padding = new Padding(8, 2, 8, 2),
+            };
+            b.FlatAppearance.BorderSize = 0;
+            b.FlatAppearance.MouseOverBackColor = Color.FromArgb(20, 255, 255, 255);
+            b.FlatAppearance.MouseDownBackColor = Color.FromArgb(30, 255, 255, 255);
+            return b;
+        }
+
+        private void LayoutDynamic()
+        {
+            int topMargin = 24;
+            int centerX = ClientSize.Width / 2;
+
+            _btnClose.Location = new Point(ClientSize.Width - _btnClose.Width - 14, 10);
+            _btnEdit.Location = new Point(_btnClose.Left - _btnEdit.Width - 12, 10);
+
+            _avatar.Location = new Point(centerX - _avatar.Width / 2, topMargin + 28);
+
+            _lblName.Location = new Point(centerX - (_lblName.PreferredWidth / 2), _avatar.Bottom + 14);
+            _lblStatus.Location = new Point(centerX - (_lblStatus.PreferredWidth / 2), _lblName.Bottom + 3);
+
+            _lblPhone.Location = new Point(40, _lblStatus.Bottom + 48);
+            if (_lblPhoneType != null)
+            {
+                _lblPhoneType.Location = new Point(_lblPhone.Left, _lblPhone.Bottom + 6);
+            }
+        }
+    }
+}
