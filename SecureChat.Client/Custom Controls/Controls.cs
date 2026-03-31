@@ -1,4 +1,3 @@
-using SecureChat.Client;
 using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -7,7 +6,7 @@ using System.Windows.Forms;
 namespace SecureChat.Client
 {
     // ─────────────────────────────────────────────
-    // ROUNDED PANEL - panel với bo góc
+    // ROUNDED PANEL
     // ─────────────────────────────────────────────
     public class RoundedPanel : Panel
     {
@@ -39,18 +38,11 @@ namespace SecureChat.Client
         public static GraphicsPath GetRoundedPath(Rectangle rect, int radius)
         {
             var path = new GraphicsPath();
+            if (rect.Width <= 0 || rect.Height <= 0) return path;
 
-            // Guard: invalid rectangle -> trả về path rỗng
-            if (rect.Width <= 0 || rect.Height <= 0)
-            {
-                return path;
-            }
-
-            // Clamp radius vào khoảng hợp lệ: không lớn hơn nửa width/height
             int maxRadius = Math.Min(rect.Width / 2, rect.Height / 2);
             int r = Math.Clamp(radius, 0, maxRadius);
 
-            // Nếu radius == 0 thì dùng rectangle thay vì gọi AddArc với kích thước 0
             if (r <= 0)
             {
                 path.AddRectangle(rect);
@@ -69,7 +61,7 @@ namespace SecureChat.Client
     }
 
     // ─────────────────────────────────────────────
-    // TELEGRAM BUTTON - nút xanh bo góc
+    // TELEGRAM BUTTON
     // ─────────────────────────────────────────────
     public class TelegramButton : Button
     {
@@ -122,7 +114,7 @@ namespace SecureChat.Client
     }
 
     // ─────────────────────────────────────────────
-    // AVATAR CONTROL - hình tròn chữ cái đầu
+    // AVATAR CONTROL
     // ─────────────────────────────────────────────
     public class AvatarControl : Control
     {
@@ -169,7 +161,6 @@ namespace SecureChat.Client
                 e.Graphics.DrawString(initials, TG.FontSemiBold(fontSize), Brushes.White, rect, sf);
             }
 
-            // Online dot
             if (ShowOnline)
             {
                 int dotSize = Math.Max(8, size / 5);
@@ -190,7 +181,7 @@ namespace SecureChat.Client
     }
 
     // ─────────────────────────────────────────────
-    // TELEGRAM TEXTBOX - input có bo góc + placeholder
+    // TELEGRAM TEXTBOX
     // ─────────────────────────────────────────────
     public class TelegramTextBox : Panel
     {
@@ -270,8 +261,6 @@ namespace SecureChat.Client
         protected override void OnLayout(LayoutEventArgs e)
         {
             base.OnLayout(e);
-
-            // Guard: chưa khởi tạo xong thì bỏ qua
             if (_tb == null || _placeholderLabel == null) return;
 
             int pad = 12;
@@ -282,7 +271,14 @@ namespace SecureChat.Client
     }
 
     // ─────────────────────────────────────────────
-    // TELEGRAM HEADER - thanh trên cùng màu xanh
+    // TELEGRAM HEADER (ĐÃ FIX “chữ danh bạ bị thụt vô”)
+    // ─────────────────────────────────────────────
+
+    // ─────────────────────────────────────────────
+    // TELEGRAM HEADER (FIX LẦN 2 – padding lớn hơn)
+    // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    // TELEGRAM HEADER (FIX LẦN 3 – padding rộng hơn)
     // ─────────────────────────────────────────────
     public class TelegramHeader : Panel
     {
@@ -292,9 +288,27 @@ namespace SecureChat.Client
         private AvatarControl _avatar;
         private Panel _rightPanel;
 
+        // Dùng biến này để theo dõi trạng thái, tránh bẫy Control.Visible của WinForms
+        private bool _showBack = false;
+
         public string Title { get => _lblTitle.Text; set => _lblTitle.Text = value; }
-        public string Subtitle { get => _lblSubtitle.Text; set { _lblSubtitle.Text = value; _lblSubtitle.Visible = !string.IsNullOrEmpty(value); } }
-        public bool ShowBack { get => _btnBack.Visible; set => _btnBack.Visible = value; }
+        public string Subtitle
+        {
+            get => _lblSubtitle.Text;
+            set { _lblSubtitle.Text = value; _lblSubtitle.Visible = !string.IsNullOrEmpty(value); UpdateLayout(); }
+        }
+
+        public bool ShowBack
+        {
+            get => _showBack;
+            set
+            {
+                _showBack = value;
+                _btnBack.Visible = value;
+                if (value) _btnBack.BringToFront();
+                UpdateLayout();
+            }
+        }
         public event EventHandler BackClicked { add => _btnBack.Click += value; remove => _btnBack.Click -= value; }
 
         public TelegramHeader()
@@ -306,10 +320,10 @@ namespace SecureChat.Client
             _btnBack = new Button
             {
                 Text = "←",
-                Font = TG.FontRegular(14f),
+                Font = TG.FontRegular(18f),
                 ForeColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
-                Size = new Size(40, 52),
+                Size = new Size(52, 52),
                 Location = new Point(0, 0),
                 Cursor = Cursors.Hand,
                 Visible = false,
@@ -318,21 +332,21 @@ namespace SecureChat.Client
             };
             _btnBack.FlatAppearance.BorderSize = 0;
 
-            _avatar = new AvatarControl { Size = new Size(36, 36), Location = new Point(50, 8), Visible = false };
+            _avatar = new AvatarControl { Size = new Size(36, 36), Location = new Point(52, 8), Visible = false };
 
             _lblTitle = new Label
             {
                 AutoSize = false,
-                Height = 28,
-                Font = TG.FontSemiBold(11f),
+                Font = TG.FontSemiBold(11.5f), // Font vừa phải để không choán chỗ
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
-                TextAlign = ContentAlignment.BottomLeft,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AutoEllipsis = true,
             };
+
             _lblSubtitle = new Label
             {
                 AutoSize = false,
-                Height = 18,
                 Font = TG.FontRegular(8.5f),
                 ForeColor = TG.TitleBarSub,
                 BackColor = Color.Transparent,
@@ -340,30 +354,51 @@ namespace SecureChat.Client
                 Visible = false,
             };
 
-            _rightPanel = new Panel { BackColor = Color.Transparent, Width = 80 };
+            _rightPanel = new Panel { BackColor = Color.Transparent, Width = 100 };
 
             Controls.AddRange(new Control[] { _btnBack, _avatar, _lblTitle, _lblSubtitle, _rightPanel });
+            UpdateLayout();
         }
 
         protected override void OnResize(EventArgs e)
         {
             base.OnResize(e);
-
-            // Guard: OnResize có thể được gọi trước khi các field được khởi tạo trong ctor
-            if (_btnBack == null || _avatar == null || _lblTitle == null || _lblSubtitle == null || _rightPanel == null)
-                return;
-
-            int leftX = _btnBack.Visible ? 44 : 12;
-            if (_avatar.Visible) { _avatar.Location = new Point(leftX, 8); leftX += 44; }
-
-            // đảm bảo width không âm
-            int availableWidth = Math.Max(0, Width - leftX - 90);
-            _lblTitle.SetBounds(leftX, _lblSubtitle.Visible ? 6 : 12, availableWidth, 28);
-            _lblSubtitle.SetBounds(leftX, 30, availableWidth, 18);
-            _rightPanel.SetBounds(Math.Max(0, Width - 90), 0, 90, Height);
+            UpdateLayout();
         }
 
-        public void SetAvatar(string name) { _avatar.SetName(name); _avatar.Visible = true; OnResize(null); }
+        // Tách hàm update layout để gọi an toàn mọi lúc
+        private void UpdateLayout()
+        {
+            if (_btnBack == null || _lblTitle == null) return;
+
+            // Nếu có nút Back (rộng 52px), nhích chữ ra mốc 52px. Không bị đè, không "thụt vô".
+            int leftX = _showBack ? 52 : 16;
+
+            if (_avatar.Visible)
+            {
+                _avatar.Location = new Point(leftX, 8);
+                leftX += 44; // Width 36 + Margin 8
+            }
+
+            _lblTitle.BringToFront();
+
+            int availableWidth = Math.Max(0, Width - leftX - 100);
+
+            // Nếu không có sub-title thì Title căn giữa theo chiều dọc
+            int titleY = string.IsNullOrEmpty(_lblSubtitle.Text) ? (Height - 24) / 2 : 6;
+
+            _lblTitle.SetBounds(leftX, titleY, availableWidth, 24);
+            _lblSubtitle.SetBounds(leftX, 30, availableWidth, 18);
+            _rightPanel.SetBounds(Math.Max(0, Width - 100), 0, 100, Height);
+        }
+
+        public void SetAvatar(string name)
+        {
+            _avatar.SetName(name);
+            _avatar.Visible = true;
+            UpdateLayout();
+        }
+
         public void AddRightButton(string text, EventHandler onClick)
         {
             var btn = new Button
@@ -384,7 +419,7 @@ namespace SecureChat.Client
     }
 
     // ─────────────────────────────────────────────
-    // UNREAD BADGE - chấm tròn số tin chưa đọc
+    // UNREAD BADGE
     // ─────────────────────────────────────────────
     public class UnreadBadge : Control
     {

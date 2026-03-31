@@ -12,10 +12,10 @@ namespace SecureChat.Client
         {
             ApplicationConfiguration.Initialize();
             // Application.Run(new TwoFAForm());
-            // Application.Run(new MainForm());
-            Application.Run(new frmLoginRegister());
+             Application.Run(new frmMainChat());
+            // Application.Run(new frmLoginRegister());
             // Application.Run(new ForgotPasswordForm());
-
+             // Application.Run(new frmContacts());
         }
     }
 }

@@ -68,7 +68,8 @@ namespace SecureChat.Client
 
             _tabs = new TabControl();
             _tabContacts = new TabPage("  Danh sách  ") { BackColor = Color.White, UseVisualStyleBackColor = false };
-            _tabRequests = new TabPage("  Lời mời  ") { BackColor = Color.White, UseVisualStyleBackColor = false };
+            // Trong frmContacts()
+            _tabRequests = new TabPage("  Lời mời    ") { BackColor = Color.White, UseVisualStyleBackColor = false };
             _tabSearch = new TabPage("  Tìm kiếm  ") { BackColor = Color.White, UseVisualStyleBackColor = false };
 
             _contactSubTabs = new TabControl();

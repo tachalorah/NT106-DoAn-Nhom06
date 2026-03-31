@@ -12,7 +12,7 @@ namespace SecureChat.Client
     public partial class frmMainChat : Form
     {
         // ── Layout panels ──────────────────────────
-        private Panel _pnlSidebar;       // 280px bên trái
+        private Panel _pnlSidebar = null!;       // 280px bên trái
         private Panel _pnlChat;          // phần còn lại
         private Panel _pnlSettingsMenu;  // slide ra từ bên PHẢI đè lên chat area
         private bool _settingsVisible = false;
