@@ -63,7 +63,7 @@ namespace SecureChat.Client.Forms.Settings
             AddMenuItem(ref y, "My Account", "my_account.png", OpenProfile);
             AddMenuItem(ref y, "Notifications and Sounds", "notifications.png", OpenNotifications);
             AddMenuItem(ref y, "Privacy and Security", "privacy.png", OpenPrivacy);
-            AddMenuItem(ref y, "Chat Settings", "chat.png", ShowPending);
+            AddMenuItem(ref y, "Chat Settings", "chat.png", OpenChatSettings);
             AddMenuItem(ref y, "Folders", "folders.png", ShowPending);
             AddMenuItem(ref y, "Advanced", "advanced.png", ShowPending);
             AddMenuItem(ref y, "Speakers and Camera", "devices.png", ShowPending);
@@ -230,6 +230,13 @@ namespace SecureChat.Client.Forms.Settings
         private void OpenPrivacy()
         {
             using var dlg = new frmPrivacySecurity();
+            dlg.StartPosition = FormStartPosition.CenterParent;
+            dlg.ShowDialog(this);
+        }
+
+        private void OpenChatSettings()
+        {
+            using var dlg = new frmChatSettings();
             dlg.StartPosition = FormStartPosition.CenterParent;
             dlg.ShowDialog(this);
         }
