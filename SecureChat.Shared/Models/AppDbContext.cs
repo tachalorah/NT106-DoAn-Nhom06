@@ -33,15 +33,20 @@ namespace SecureChat.Models
 		{
 			m.Entity<Friend>()
 				.HasOne(f => f.UserA)
-				.WithMany()
+				.WithMany(u => u.FriendshipsA)
 				.HasForeignKey(f => f.UserAID)
 				.OnDelete(DeleteBehavior.Cascade);
 
 			m.Entity<Friend>()
 				.HasOne(f => f.UserB)
-				.WithMany()
+				.WithMany(u => u.FriendshipsB)
 				.HasForeignKey(f => f.UserBID)
 				.OnDelete(DeleteBehavior.Cascade);
+
+			m.Entity<Friend>()
+        			.ToTable(t => t.HasCheckConstraint(
+							"chk_friends_order",
+							"user_a_id < user_b_id"));
 
 			m.Entity<FriendRequest>()
 				.HasOne(r => r.Sender)
@@ -265,7 +270,6 @@ namespace SecureChat.Models
 				.HasIndex(a => a.FileHash)
 				.HasDatabaseName("idx_attachments_hash");
  
-			// Sắp xếp giảm dần theo last_activity_at (DESC)
 			m.Entity<Conversation>()
 				.HasIndex(c => c.LastActivityAt)
 				.IsDescending(true)
@@ -287,7 +291,6 @@ namespace SecureChat.Models
 				.HasIndex(mm => mm.MemberID)
 				.HasDatabaseName("idx_mentions_user");
  
-			// (conversation_id ASC, sent_at DESC)
 			m.Entity<Message>()
 				.HasIndex(msg => new { msg.ConversationID, msg.SentAt })
 				.IsDescending(false, true)
@@ -301,8 +304,6 @@ namespace SecureChat.Models
 				.HasIndex(s => new { s.MemberID, s.ReadAt })
 				.HasDatabaseName("idx_msg_status_user");
  
-			// idx_users_email và idx_users_username trùng với unique index nhưng
-			// vẫn khai báo theo SQL gốc; EF Core sẽ dùng chung index đã có.
 			m.Entity<User>()
 				.HasIndex(u => u.Email)
 				.HasDatabaseName("idx_users_email");

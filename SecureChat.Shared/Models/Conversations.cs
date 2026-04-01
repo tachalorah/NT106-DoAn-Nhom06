@@ -19,7 +19,7 @@ namespace SecureChat.Models
 		public string? Name { get; set; }
 
 		[Column("avatar_url")]
-		public string? AvatarUrl { get; set; }
+		public string? AvatarURL { get; set; }
 
 		[Column("created_by")]
 		[MaxLength(8)]
@@ -78,7 +78,7 @@ namespace SecureChat.Models
 
 		[Required]
 		[Column("encrypted_key")]
-		public string EncryptedKey = "";
+		public string EncryptedKey { get; set; } = "";
 
 		[Column("joined_at")]
 		public DateTime JoinedAt { get; set; }
@@ -109,5 +109,8 @@ namespace SecureChat.Models
 
 		[InverseProperty(nameof(Message.Sender))]
 		public ICollection<Message> SentMessages { get; set; } = [];
+		
+		[InverseProperty(nameof(CallParticipant.Member))]
+		public ICollection<CallParticipant> CallsJoined { get; set; } = [];
 	}
 }

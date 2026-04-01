@@ -67,7 +67,7 @@ namespace SecureChat.Models
 		[InverseProperty(nameof(CallLog.Participants))]
 		public CallLog Call { get; set; } = null!;
 
-		[InverseProperty(nameof(ParticipantID))]
+		[InverseProperty(nameof(ConversationMember.CallsJoined))]
 		public ConversationMember Member { get; set; } = null!;
 	}
 

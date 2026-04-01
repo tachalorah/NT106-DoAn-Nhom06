@@ -87,7 +87,7 @@ namespace SecureChat.Models
 		public DateTime CreatedAt { get; set; }
 
 		[ForeignKey(nameof(BlockerID))]
-		[InverseProperty(nameof(BlockerID))]
+		[InverseProperty(nameof(User.BlockedUsers))]
 		public User Blocker { get; set; } = null!;
 
 		[ForeignKey(nameof(BlockedID))]

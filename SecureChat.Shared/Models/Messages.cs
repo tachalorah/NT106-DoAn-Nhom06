@@ -33,10 +33,10 @@ namespace SecureChat.Models
 		public MessageType Type { get; set; } = MessageType.Text;
 
 		[Column("content")]
-		public string? Content { get; set; }
+		public string Content { get; set; } = "";
 
 		[Column("content_iv")]
-		public string? ContentIV { get; set; }
+		public string? ContentIV { get; set; } = "";
 
 		[Column("sent_at")]
 		public DateTime SentAt { get; set; }
@@ -53,7 +53,7 @@ namespace SecureChat.Models
 
 		[ForeignKey(nameof(SenderID))]
 		[InverseProperty(nameof(ConversationMember.SentMessages))]
-		public ConversationMember? Sender { get; set; } = null !;
+		public ConversationMember? Sender { get; set; }
 
 		[ForeignKey(nameof(OriginalSenderID))]
 		public User? OriginalSender { get; set; }
@@ -125,8 +125,8 @@ namespace SecureChat.Models
 		[Column("thumbnail_iv")]
 		public string? ThumbnailIv { get; set; }
 
-		[Column("created_at")]
-		public DateTime CreatedAt { get; set; }
+		[Column("uploaded_at")]
+		public DateTime UploadedAt { get; set; }
 
 		[ForeignKey(nameof(MessageID))]
 		[InverseProperty(nameof(Message.Attachments))]
@@ -179,11 +179,11 @@ namespace SecureChat.Models
 		[Required]
 		[Column("member_id")]
 		[MaxLength(8)]
-		public string? MemberID { get; set; }
+		public string MemberID { get; set; } = "";
 
 		[Required]
 		[Column("reaction")]
-		[MaxLength(64)]
+		[MaxLength(8)]
 		public string Reaction { get; set; } = "";
 
 		[Column("created_at")]
@@ -197,7 +197,7 @@ namespace SecureChat.Models
 		public ConversationMember? Member { get; set; }
 	}
 
-	[Table("MessageStatus")]
+	[Table("MessageStatuses")]
 	public class MessageStatus
 	{
 		[Key]
@@ -213,7 +213,7 @@ namespace SecureChat.Models
 		[Required]
 		[Column("member_id")]
 		[MaxLength(8)]
-		public string? MemberID { get; set; }
+		public string MemberID { get; set; } = "";
 
 		[Column("delivered_at")]
 		public DateTime? DeliveredAt { get; set; }
