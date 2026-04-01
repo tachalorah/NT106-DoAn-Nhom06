@@ -1,61 +1,86 @@
 using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Windows.Forms;
+using System.Collections.Generic; //  cho phép dùng List<T>.
+using System.Drawing; //  làm việc với màu sắc (Color), font, hình ảnh.
+using System.Drawing.Drawing2D; // vẽ nâng cao như SmoothingMode, AntiAlias.
+using System.Windows.Forms; // tạo giao diện desktop (Form, Panel, Label, Button...).
 
 namespace SecureChat.Client
 {
-    // Phân biệt bạn bè (hàng trong Friends) và nhóm (Conversations.type = 1)
+    // Dùng một List<ContactItem> để chứa cả bạn bè và nhóm
+    // Tìm kiếm hoặc hiển thị danh sách tổng hợp dễ dàng hơn.
     public enum ContactType { Friend, Group }
 
-    // FriendStatus khớp với bảng FriendRequests (status) và Friends / BlockedUsers
     public enum FriendStatus { None, PendingIncoming, PendingOutgoing, Friend, Blocked }
+    /*Trạng thái quan hệ bạn bè:
+    None — chưa có quan hệ
+    PendingIncoming — đang có lời mời gửi đến
+    PendingOutgoing — đã gửi lời mời, chờ đối phương
+    Friend — đã là bạn bè
+    Blocked — đã bị chặn*/
 
+
+    // Model dữ liệu đại diện cho một contact (bạn bè hoặc nhóm):
     public class ContactItem
     {
-        public ContactType Type { get; set; } = ContactType.Friend;
-        public string DisplayName { get; set; } = string.Empty;
-        public string AvatarUrl { get; set; } = string.Empty;
-        public string LastSeenAt { get; set; } = string.Empty;
+        public ContactType Type { get; set; } = ContactType.Friend; 
+        // Khi tạo 1 đối tượng ContactItem, mặc định là Friend
+        // Khi tạo Group thì ghi đè lại
 
-        public string UserId { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
-        public string Nickname { get; set; } = string.Empty;
-        public bool IsOnline { get; set; }
-        public FriendStatus Status { get; set; } = FriendStatus.None;
+        public string DisplayName { get; set; } = string.Empty; // Tên hiển thị
+        public string AvatarUrl { get; set; } = string.Empty; // URL ảnh đại diện
+        public string LastSeenAt { get; set; } = string.Empty; // Thời gian hoạt động cuối
 
-        public string ConversationId { get; set; } = string.Empty;
-        public int MemberCount { get; set; }
+        public string UserId { get; set; } = string.Empty; // ID người dùng
+        public string Username { get; set; } = string.Empty; // Tên đăng nhập (@username)
+        public string Nickname { get; set; } = string.Empty; // Biệt danh (nếu có)
+        public bool IsOnline { get; set; } // Đang online hay không: có chấm xanh cạnh Avatar
+        public FriendStatus Status { get; set; } = FriendStatus.None; // Trạng thái bạn bè: 5 cái (None, PendingIncoming, PendingOutgoing, Friend, Blocked)
+
+        public string ConversationId { get; set; } = string.Empty; // ID cuộc hội thoại (dùng cho Group)
+        public int MemberCount { get; set; } // Số thành viên (dùng cho Group)
     }
 
+    // Model cho một lời mời kết bạn:
     public class FriendRequestItem
     {
-        public string RequestId { get; set; } = string.Empty;
-        public string SenderId { get; set; } = string.Empty;
-        public string RecipientId { get; set; } = string.Empty;
-        public string DisplayName { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
-        public string AvatarUrl { get; set; } = string.Empty;
-        public string CreatedAt { get; set; } = string.Empty;
-        public int MutualCount { get; set; }
-        public bool IsIncoming { get; set; }
+        public string RequestId { get; set; } = string.Empty; // ID người nhận
+        public string SenderId { get; set; } = string.Empty; // ID người gửi
+        public string RecipientId { get; set; } = string.Empty; // ID người nhận
+        public string DisplayName { get; set; } = string.Empty; // Tên người gửi
+        public string Username { get; set; } = string.Empty; // Username người gửi
+        public string AvatarUrl { get; set; } = string.Empty; // Ảnh đại diện người gửi
+        public string CreatedAt { get; set; } = string.Empty; // Thời điểm gửi
+        public int MutualCount { get; set; } // Số bạn chung
+        public bool IsIncoming { get; set; } // true = lời mời nhận được, false = mình đã gửi
     }
 
     public class frmContacts : Form
     {
-        private readonly TabControl _tabs;
-        private readonly TabPage _tabContacts, _tabRequests, _tabSearch;
+        // Biến toàn cục của class (private readonly).
+        // Điều này giúp các hàm khác trong class có thể truy cập trực tiếp vào hai cái bảng này bất cứ lúc nào
+        // Ví dụ: để làm mới danh sách bạn bè mà không cần tìm lại nó nằm ở đâu.
 
+        private readonly TabControl _tabs; // chứa 3 mục lớn: Danh sách, Lời mời, và Tìm kiếm.
+        private readonly TabPage _tabContacts, _tabRequests, _tabSearch; // 3 trang nội dung tương ứng với 3 mục trên.
+
+        // Tab con trong "Danh sách" để chia Bạn bè / Nhóm.
         private readonly TabControl _contactSubTabs;
-        private readonly Panel _pnlFriends, _pnlGroups;
+        private readonly Panel _pnlFriends, _pnlGroups; // Khác với tab cha Lời mời, tab con của Danh sách được khai báo toàn cục. Khi 1 người dùng được cập nhật hay thay đổi trạng thái thì không ảnh hưởng đến còn lại
+        // Thiếu tab con ""Người dùng đã bị chặn""
 
+
+        // Tab con trong "Lời mời" để chia Đã nhận / Đã gửi.
         private readonly TabControl _requestSubTabs;
+        // Panel cho 2 tab con được khai báo cục bộ
+        // Trong lập trình WinForms, thay vì tìm cách chèn thêm 1 dòng vào giữa một cái Panel đang có sẵn, người ta thường chọn cách xóa sạch và vẽ lại:
 
+        // Thanh tìm kiếm, vùng kết quả, và label gợi ý tìm kiếm.
         private readonly TelegramTextBox _tbSearch;
         private readonly Panel _pnlSearchResults;
+        // Khác với Placeholder là "Bạn có thể gõ gì vào đây", Hint là giải thích "Tại sao vùng này đang trống"
         private readonly Label _lblSearchHint;
 
+        // Đếm số lời mời đang chờ(để hiển thị badge đỏ trên tab "Lời mời").
         private int _incomingCount = 0;
 
         private List<ContactItem> _friends = new List<ContactItem>();
@@ -68,7 +93,6 @@ namespace SecureChat.Client
 
             _tabs = new TabControl();
             _tabContacts = new TabPage("  Danh sách  ") { BackColor = Color.White, UseVisualStyleBackColor = false };
-            // Trong frmContacts()
             _tabRequests = new TabPage("  Lời mời    ") { BackColor = Color.White, UseVisualStyleBackColor = false };
             _tabSearch = new TabPage("  Tìm kiếm  ") { BackColor = Color.White, UseVisualStyleBackColor = false };
 
@@ -119,6 +143,7 @@ namespace SecureChat.Client
             MinimumSize = new Size(360, 560);
             StartPosition = FormStartPosition.CenterParent;
             BackColor = Color.White;
+            MaximizeBox = false; // chặn nút phóng to
             Font = TG.FontRegular(9.5f);
 
             // 1. Header (đặt trước để WinForms tính docking đúng)
