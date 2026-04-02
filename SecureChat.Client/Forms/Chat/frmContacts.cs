@@ -1,61 +1,100 @@
 using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Windows.Forms;
+using System.Collections.Generic; //  cho phép dùng List<T>.
+using System.Drawing; //  làm việc với màu sắc (Color), font, hình ảnh.
+using System.Drawing.Drawing2D; // vẽ nâng cao như SmoothingMode, AntiAlias.
+using System.Windows.Forms; // tạo giao diện desktop (Form, Panel, Label, Button...).
 
 namespace SecureChat.Client
 {
-    // Phân biệt bạn bè (hàng trong Friends) và nhóm (Conversations.type = 1)
+    // Dùng một List<ContactItem> để chứa cả bạn bè và nhóm
+    // Tìm kiếm hoặc hiển thị danh sách tổng hợp dễ dàng hơn.
     public enum ContactType { Friend, Group }
 
-    // FriendStatus khớp với bảng FriendRequests (status) và Friends / BlockedUsers
     public enum FriendStatus { None, PendingIncoming, PendingOutgoing, Friend, Blocked }
+    /*Trạng thái quan hệ bạn bè:
+    None — chưa có quan hệ
+    PendingIncoming — đang có lời mời gửi đến
+    PendingOutgoing — đã gửi lời mời, chờ đối phương
+    Friend — đã là bạn bè
+    Blocked — đã bị chặn*/
 
+
+    // Model dữ liệu đại diện cho một contact (bạn bè hoặc nhóm):
     public class ContactItem
     {
         public ContactType Type { get; set; } = ContactType.Friend;
-        public string DisplayName { get; set; } = string.Empty;
-        public string AvatarUrl { get; set; } = string.Empty;
-        public string LastSeenAt { get; set; } = string.Empty;
+        // Khi tạo 1 đối tượng ContactItem, mặc định là Friend
+        // Khi tạo Group thì ghi đè lại
 
-        public string UserId { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
-        public string Nickname { get; set; } = string.Empty;
-        public bool IsOnline { get; set; }
-        public FriendStatus Status { get; set; } = FriendStatus.None;
+        public string DisplayName { get; set; } = string.Empty; // Tên hiển thị
+        public string AvatarUrl { get; set; } = string.Empty; // URL ảnh đại diện
+        public string LastSeenAt { get; set; } = string.Empty; // Thời gian hoạt động cuối
 
-        public string ConversationId { get; set; } = string.Empty;
-        public int MemberCount { get; set; }
+        public string UserId { get; set; } = string.Empty; // ID người dùng
+        public string Username { get; set; } = string.Empty; // Tên đăng nhập (@username)
+        public string Nickname { get; set; } = string.Empty; // Biệt danh (nếu có)
+        public bool IsOnline { get; set; } // Đang online hay không: có chấm xanh cạnh Avatar
+        public FriendStatus Status { get; set; } = FriendStatus.None; // Trạng thái bạn bè: 5 cái (None, PendingIncoming, PendingOutgoing, Friend, Blocked)
+
+        public string ConversationId { get; set; } = string.Empty; // ID cuộc hội thoại (dùng cho Group)
+        public int MemberCount { get; set; } // Số thành viên (dùng cho Group)
     }
 
+    // Model cho một lời mời kết bạn:
     public class FriendRequestItem
     {
-        public string RequestId { get; set; } = string.Empty;
-        public string SenderId { get; set; } = string.Empty;
-        public string RecipientId { get; set; } = string.Empty;
-        public string DisplayName { get; set; } = string.Empty;
-        public string Username { get; set; } = string.Empty;
-        public string AvatarUrl { get; set; } = string.Empty;
-        public string CreatedAt { get; set; } = string.Empty;
-        public int MutualCount { get; set; }
-        public bool IsIncoming { get; set; }
+        public string RequestId { get; set; } = string.Empty; // ID người nhận
+        public string SenderId { get; set; } = string.Empty; // ID người gửi
+        public string RecipientId { get; set; } = string.Empty; // ID người nhận
+        public string DisplayName { get; set; } = string.Empty; // Tên người gửi
+        public string Username { get; set; } = string.Empty; // Username người gửi
+        public string AvatarUrl { get; set; } = string.Empty; // Ảnh đại diện người gửi
+        public string CreatedAt { get; set; } = string.Empty; // Thời điểm gửi
+        public int MutualCount { get; set; } // Số bạn chung
+        public bool IsIncoming { get; set; } // true = lời mời nhận được, false = mình đã gửi
     }
 
     public class frmContacts : Form
     {
-        private readonly TabControl _tabs;
-        private readonly TabPage _tabContacts, _tabRequests, _tabSearch;
+        // Biến toàn cục của class (private readonly).
+        // Điều này giúp các hàm khác trong class có thể truy cập trực tiếp vào hai cái bảng này bất cứ lúc nào
+        // Ví dụ: để làm mới danh sách bạn bè mà không cần tìm lại nó nằm ở đâu.
 
+        private readonly TabControl _tabs; // chứa 3 tab cha : Danh sách, Lời mời, và Tìm kiếm.
+        private readonly TabPage _tabContacts, _tabRequests, _tabSearch; // 3 trang nội dung tương ứng với 3 tab cha.
+
+        // Tab con trong "Danh sách" để chia Bạn bè / Nhóm.
         private readonly TabControl _contactSubTabs;
-        private readonly Panel _pnlFriends, _pnlGroups;
+        private readonly Panel _pnlFriends, _pnlGroups; // Khác với tab cha Lời mời, tab con của Danh sách được khai báo toàn cục.
+                                                        // Khi 1 người dùng được cập nhật hay thay đổi trạng thái thì không ảnh hưởng đến còn lại
+                                                        // ----------------------- Thiếu tab con ""Người dùng đã bị chặn"" ----------------------------------------
 
+        /*
+        _______________________________________________________
+        |                                                     |
+        |   [Tab 1 ][Tab 2 ][Tab 3 ]                          | <-- Tabstrip
+        |_____________________________________________________|
+        |                                                     |
+        |                                                     |
+        |                  TAB PAGE                           |
+        |                                                     |
+        |                                                     |
+        |                                                     |
+        |_____________________________________________________|
+        */
+
+        // Tab con trong "Lời mời" để chia Đã nhận / Đã gửi.
         private readonly TabControl _requestSubTabs;
+        // Panel cho 2 tab con được khai báo cục bộ
+        // Trong lập trình WinForms, thay vì tìm cách chèn thêm 1 dòng vào giữa một cái Panel đang có sẵn, người ta thường chọn cách xóa sạch và vẽ lại:
 
+        // Thanh tìm kiếm, vùng kết quả, và label gợi ý tìm kiếm.
         private readonly TelegramTextBox _tbSearch;
         private readonly Panel _pnlSearchResults;
+        // Khác với Placeholder là "Bạn có thể gõ gì vào đây", Hint là giải thích "Tại sao vùng này đang trống"
         private readonly Label _lblSearchHint;
 
+        // Đếm số những lời mời bạn đã nhận được (Incoming) (để hiển thị badge đỏ trên tab "Lời mời").
         private int _incomingCount = 0;
 
         private List<ContactItem> _friends = new List<ContactItem>();
@@ -66,9 +105,11 @@ namespace SecureChat.Client
         {
             InitMockData();
 
+            // TabPage chính vừa là cái "đầu tab" (tabstrip) vừa là vùng nội dung bên trong.
+            // Chuỗi "  Danh sách  " truyền vào constructor chính là thuộc tính Text của TabPage, và WinForms tự dùng Text đó để vẽ chữ lên tabstrip.
+            // WinForms không tự vẽ nữa — thay vào đó hàm DrawTabItem() tự lấy tab.Text ra để vẽ.
             _tabs = new TabControl();
             _tabContacts = new TabPage("  Danh sách  ") { BackColor = Color.White, UseVisualStyleBackColor = false };
-            // Trong frmContacts()
             _tabRequests = new TabPage("  Lời mời    ") { BackColor = Color.White, UseVisualStyleBackColor = false };
             _tabSearch = new TabPage("  Tìm kiếm  ") { BackColor = Color.White, UseVisualStyleBackColor = false };
 
@@ -85,6 +126,11 @@ namespace SecureChat.Client
             InitializeComponent();
         }
 
+        /*Tạo dữ liệu giả cho demo:
+        _friends — 4 người bạn(2 online, 2 offline).
+        _groups — 2 nhóm chat.
+        _requests — 3 lời mời đến + 1 lời mời đã gửi.
+        _incomingCount — đếm số request IsIncoming = true(= 3).*/
         private void InitMockData()
         {
             _friends = new List<ContactItem>
@@ -110,6 +156,8 @@ namespace SecureChat.Client
             };
 
             _incomingCount = _requests.FindAll(r => r.IsIncoming).Count;
+            // FindAll(r => r.IsIncoming): Duyệt qua toàn bộ danh sách _requests và lọc ra một danh sách con chỉ chứa các lời mời có IsIncoming == true.
+            // Count: Đếm xem danh sách con đó có bao nhiêu phần tử và gán con số đó vào biến _incomingCount.
         }
 
         private void InitializeComponent()
@@ -119,6 +167,7 @@ namespace SecureChat.Client
             MinimumSize = new Size(360, 560);
             StartPosition = FormStartPosition.CenterParent;
             BackColor = Color.White;
+            MaximizeBox = false; // chặn nút phóng to
             Font = TG.FontRegular(9.5f);
 
             // 1. Header (đặt trước để WinForms tính docking đúng)
@@ -130,24 +179,38 @@ namespace SecureChat.Client
             };
             header.BackClicked += (s, e) => Close();
 
-            // 2. Tab chính
-            _tabs.Padding = new Point(0, 0);
-            _tabs.Dock = DockStyle.Fill;
-            _tabs.Appearance = TabAppearance.FlatButtons;
-            _tabs.Font = TG.FontRegular(9.5f);
-            _tabs.ItemSize = new Size(0, 32);
-            _tabs.SizeMode = TabSizeMode.FillToRight;
-            _tabs.DrawMode = TabDrawMode.OwnerDrawFixed;
-            _tabs.DrawItem += DrawTabItem;
-            _tabs.Selected += (s, e) => _tabs.Invalidate();
+            // 2. Tab cha
 
+            // Cấu hình Kích thước và Vị trí
+            _tabs.Padding = new Point(0, 0); // Loại bỏ khoảng cách đệm giữa các TabPage và nội dung bên trong
+                                             // giúp giao diện khít sát và gọn gàng.
+            _tabs.Dock = DockStyle.Fill; // Làm cho bộ Tab này lấp đầy toàn bộ diện tích của Form hoặc Panel chứa nó.
+            _tabs.ItemSize = new Size(0, 32); // Thiết lập chiều cao của thanh tiêu đề Tabstrip là 32 pixel.
+                                              // Số 0 ở đầu có nghĩa là chiều rộng sẽ được tự động tính toán.
+            _tabs.SizeMode = TabSizeMode.FillToRight; // Các tiêu đề Tab sẽ tự động giãn ra để dàn đều theo chiều ngang,
+                                                      // lấp đầy thanh menu phía trên thay vì chỉ co cụm ở bên trái.
+
+            // Hình thức
+            _tabs.Appearance = TabAppearance.FlatButtons; // Thay đổi kiểu hiển thị từ dạng "thẻ kẹp hồ sơ" truyền thống của Windows sang dạng nút phẳng.
+                                                          // Khi kết hợp với OwnerDrawFixed, nó sẽ giúp bạn dễ dàng vẽ lại màu sắc theo ý muốn.
+            _tabs.Font = TG.FontRegular(9.5f);
+
+            // Vẽ
+            _tabs.DrawMode = TabDrawMode.OwnerDrawFixed; // Bật chế độ tự vẽ
+            _tabs.DrawItem += DrawTabItem; // Sự kiện kích hoạt hàm DrawTabItem.
+                                           // Trong hàm đó, bạn sẽ code để tô màu nền xanh khi chọn Tab, vẽ số thông báo(badge) đỏ, hoặc đổi màu chữ.
+            _tabs.Selected += (s, e) => _tabs.Invalidate(); // Khi người dùng bấm chọn một Tab khác, lệnh Invalidate() yêu cầu Tab đó phải vẽ lại ngay lập tức để cập nhật trạng thái "đang được chọn"
+
+            // Thêm 3 trang
             _tabs.TabPages.AddRange(new[] { _tabContacts, _tabRequests, _tabSearch });
 
+            // Khởi tạo chi tiết bên trong từng trang (ví dụ: tạo các Tab con, tạo Panel, đổ dữ liệu ban đầu).
             BuildContactsTab();
             BuildRequestsTab();
             BuildSearchTab();
 
             // 3. Panel Content (Fill) - PHẢI ADD TRƯỚC HEADER
+
             var pnlContent = new Panel
             {
                 Dock = DockStyle.Fill,
@@ -161,13 +224,17 @@ namespace SecureChat.Client
             // KHÔNG dùng BringToFront() nữa
         }
 
-        // --- HÀM TRUNG TÂM XỬ LÝ RESIZE (Chuẩn Spec) ---
+        // Hàm xử lý resize panel. Khi panel thay đổi kích thước khi tôi kéo to nhỏ form,
+        // Tất cả các row bên trong cũng được cập nhật độ rộng theo
+        // row là các đoạn chat trong tabpage để không bị khoảnh trắng lúc ta kéo
         private void Pnl_UpdateRowsWidth(object? sender, EventArgs e)
         {
-            if (sender is Panel pnl)
+            if (sender is Panel pnl) // kiểm tra và ép kiểu để sài các function của 1 panel
+                                     // tránh gây lỗi "văng" ứng dụng (crash) nếu lỡ tay gán sự kiện này cho một cái nút hay cái nhãn.
             {
-                pnl.SuspendLayout();
+                pnl.SuspendLayout(); // tạm dừng bố cục lại, giúp hệ thống chỉ tính toán một lần duy nhất ở cuối nếu kéo lâu lần.
                 int targetWidth = pnl.ClientSize.Width;
+                // int targetWidth = pnl.Width;
                 foreach (Control row in pnl.Controls)
                 {
                     row.Width = targetWidth;
@@ -182,24 +249,28 @@ namespace SecureChat.Client
             bool selected = e.Index == _tabs.SelectedIndex;
 
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            e.Graphics.FillRectangle(Brushes.White, e.Bounds);
+            e.Graphics.FillRectangle(Brushes.White, e.Bounds); // chỉnh màu trắng cho bên trong các tab cha thay vì màu xám
 
             if (selected)
             {
                 var underline = new Rectangle(e.Bounds.Left, e.Bounds.Bottom - 2, e.Bounds.Width, 2);
-                e.Graphics.FillRectangle(new SolidBrush(TG.Blue), underline);
+                e.Graphics.FillRectangle(new SolidBrush(TG.Blue), underline); // gạch xanh cho tab cha đang chọn
             }
 
-            Color fgColor = selected ? TG.Blue : TG.TextSecondary;
+            Color fgColor = selected ? TG.Blue : TG.TextSecondary; // Nếu chọn thì chữ màu xanh, không chọn thì chữ màu xám phụ
             using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
             e.Graphics.DrawString(tab.Text.Trim(), TG.FontSemiBold(9.5f), new SolidBrush(fgColor), e.Bounds, sf);
 
-            if (e.Index == 1 && _incomingCount > 0)
+            if (e.Index == 1 && _incomingCount > 0) // Chỉ vẽ trên Tab thứ 2 (Tab Lời mời).
+                                                    // Chỉ vẽ khi thực sự có lời mời đang chờ. Nếu không có ai kết bạn, cái chấm đỏ sẽ tự biến mất.
             {
-                int bx = e.Bounds.Right - 22;
-                int by = e.Bounds.Top + 6;
-                var badgeRect = new Rectangle(bx, by, 18, 18);
-                e.Graphics.FillEllipse(new SolidBrush(Color.FromArgb(0xE2, 0x4B, 0x4A)), badgeRect);
+                int bx = e.Bounds.Right - 22; // Lấy mép phải của Tab lùi vào 22 pixel.
+                // int by = e.Bounds.Top + 6; // Cách mép trên của Tab xuống 6 pixel.
+                int by = e.Bounds.Top;
+                var badgeRect = new Rectangle(bx, by, 18, 18); // Tạo một khung hình vuông kích thước 18x18 pixel.
+                e.Graphics.FillEllipse(new SolidBrush(Color.FromArgb(0xE2, 0x4B, 0x4A)), badgeRect); // Vẽ hình tròn màu đỏ hồng
+
+                // sau khi vẽ xong số, hệ thống sẽ giải phóng bộ nhớ (Dispose) của đối tượng StringFormat ngay lập tức
                 using var sf2 = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 e.Graphics.DrawString(_incomingCount.ToString(), TG.FontSemiBold(7.5f), Brushes.White, badgeRect, sf2);
             }
