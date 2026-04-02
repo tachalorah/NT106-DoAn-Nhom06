@@ -14,7 +14,7 @@ namespace SecureChat.Client
         {
             ApplicationConfiguration.Initialize();
             // Application.Run(new frmTwoFA());
-             Application.Run(new frmMainChat());
+            // Application.Run(new frmMainChat());
             // Application.Run(new frmLoginRegister());
             //Application.Run(new frmForgot());
               Application.Run(new frmContacts());
