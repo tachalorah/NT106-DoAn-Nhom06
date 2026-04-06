@@ -11,11 +11,11 @@ namespace SecureChat.Client.Forms.Settings
     public class frmChatSettings : Form
     {
         // Colors
-        private static readonly Color C_BG = Color.White;
-        private static readonly Color C_TEXT = Color.FromArgb(0x1F, 0x2D, 0x3D);
-        private static readonly Color C_SUB = Color.FromArgb(0x7A, 0x8A, 0x99);
-        private static readonly Color C_ACCENT_DEFAULT = Color.FromArgb(0x33, 0x99, 0xFF);
-        private static readonly Color C_HOVER = Color.FromArgb(0xF2, 0xF5, 0xF9);
+        private static readonly Color C_BG = Color.FromArgb(0x17, 0x21, 0x2B);
+        private static readonly Color C_TEXT = Color.White;
+        private static readonly Color C_SUB = Color.FromArgb(0x70, 0x84, 0x99);
+        private static readonly Color C_ACCENT_DEFAULT = Color.FromArgb(0x2A, 0xAB, 0xEE);
+        private static readonly Color C_HOVER = Color.FromArgb(0x20, 0x2B, 0x36);
 
         // UI
         private RadioButton _rbClassic = null!;
@@ -384,13 +384,7 @@ namespace SecureChat.Client.Forms.Settings
 
         private Control Divider()
         {
-            return new Panel
-            {
-                Height = 1,
-                Dock = DockStyle.Top,
-                BackColor = TG.Divider,
-                Margin = new Padding(0, 8, 0, 8)
-            };
+            return new Panel { Height = 1, Dock = DockStyle.Top, BackColor = Color.FromArgb(40, 255, 255, 255), Margin = new Padding(0, 8, 0, 8) };
         }
 
         // Event Handlers
@@ -573,10 +567,39 @@ namespace SecureChat.Client.Forms.Settings
         }
 
         // Icon loader
-        private static Image LoadIcon(string key)
+        private static Image? LoadIcon(string key)
         {
             var file = key.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? key : key + ".png";
-            return SettingsGlyphIcons.Create(file, 24);
+            var searchPaths = new[]
+            {
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "info", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "chat", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "settings", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "profile", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "menu", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", file)
+            };
+            foreach (var path in searchPaths)
+            {
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        using var img = Image.FromFile(path);
+                        return new Bitmap(img);
+                    }
+                    catch { }
+                }
+            }
+            Bitmap bmp = new Bitmap(24, 24);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.Transparent);
+                using var pen = new Pen(Color.Gray, 2);
+                g.DrawRectangle(pen, 2, 2, 20, 20);
+            }
+            return bmp;
         }
     }
 

@@ -54,7 +54,7 @@ namespace SecureChat.Client.Forms.Profile
             _avatar = new PictureBox
             {
                 Size = new Size(112, 112),
-                BackColor = TG.GetAvatarColor(_profile.FullName),
+                BackColor = Color.FromArgb(0xFF, 0x6B, 0x81),
                 SizeMode = PictureBoxSizeMode.Zoom,
             };
             _avatar.Paint += (_, __) => ClipCircle(_avatar);
@@ -125,8 +125,6 @@ namespace SecureChat.Client.Forms.Profile
             _lblStatus.Text = profile.StatusText;
             _lblPhone.Text = profile.PhoneNumber;
             _lblInitial.Text = GetInitials(profile.FullName);
-            _avatar.BackColor = TG.GetAvatarColor(profile.FullName);
-            ApplyAvatarImage();
             LayoutDynamic();
         }
 
@@ -145,30 +143,6 @@ namespace SecureChat.Client.Forms.Profile
             {
                 MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-        }
-
-        private void ApplyAvatarImage()
-        {
-            try
-            {
-                _avatar.Image?.Dispose();
-                _avatar.Image = null;
-
-                if (!string.IsNullOrWhiteSpace(_profile.AvatarPath) && File.Exists(_profile.AvatarPath))
-                {
-                    using var fs = new FileStream(_profile.AvatarPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    using var img = Image.FromStream(fs);
-                    _avatar.Image = new Bitmap(img);
-                    _lblInitial.Visible = false;
-                    return;
-                }
-            }
-            catch
-            {
-                // ignore and fallback to initials
-            }
-
-            _lblInitial.Visible = true;
         }
 
         private static string GetInitials(string name)

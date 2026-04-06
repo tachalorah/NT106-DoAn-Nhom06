@@ -7,13 +7,12 @@ namespace SecureChat.Client.Forms.Settings
 {
     public class frmPrivacySecurity : Form
     {
-        private static readonly Color C_BG = Color.White;
-        private static readonly Color C_TEXT = Color.FromArgb(0x1F, 0x2D, 0x3D);
-        private static readonly Color C_SUB = Color.FromArgb(0x7A, 0x8A, 0x99);
-        private static readonly Color C_ACCENT = Color.FromArgb(0x33, 0x99, 0xFF);
-        private static readonly Color C_HOVER = Color.FromArgb(0xF2, 0xF5, 0xF9);
-        private static readonly Color C_STATUS_ON = Color.FromArgb(0x33, 0x99, 0xFF);
-        private static readonly Color C_BORDER = Color.FromArgb(0xE8, 0xEC, 0xF1);
+        private static readonly Color C_BG = Color.FromArgb(0x17, 0x21, 0x2B);
+        private static readonly Color C_TEXT = Color.White;
+        private static readonly Color C_SUB = Color.FromArgb(0x70, 0x84, 0x99);
+        private static readonly Color C_ACCENT = Color.FromArgb(0x2A, 0xAB, 0xEE);
+        private static readonly Color C_HOVER = Color.FromArgb(0x20, 0x2B, 0x36);
+        private static readonly Color C_STATUS_ON = Color.FromArgb(0x64, 0xB5, 0xF6);
 
         private TableLayoutPanel _table = null!;
         private Label _lblTwoStepStatus = null!;
@@ -239,7 +238,7 @@ namespace SecureChat.Client.Forms.Settings
             {
                 Height = 1,
                 Dock = DockStyle.Top,
-                BackColor = C_BORDER,
+                BackColor = Color.FromArgb(40, 255, 255, 255),
                 Margin = new Padding(0, 4, 0, 8)
             };
             _table.Controls.Add(sep);
@@ -284,12 +283,7 @@ namespace SecureChat.Client.Forms.Settings
                             panel.Controls.Add(rb);
                         }
                         var btnOk = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = false, Width = 80, Height = 30, Padding = new Padding(6, 2, 6, 2) };
-                        btnOk.FlatStyle = FlatStyle.Flat;
-                        btnOk.FlatAppearance.BorderSize = 0;
-                        btnOk.BackColor = C_ACCENT;
-                        btnOk.ForeColor = Color.White;
                         var bottom = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(0, 6, 12, 6) };
-                        bottom.BackColor = C_BG;
                         bottom.Controls.Add(btnOk);
                         btnOk.Location = new Point(bottom.Width - btnOk.Width, 6);
                         bottom.Resize += (_, __) => btnOk.Location = new Point(bottom.Width - btnOk.Width, 6);
@@ -358,10 +352,7 @@ namespace SecureChat.Client.Forms.Settings
                 Dock = DockStyle.Fill,
                 BackColor = C_BG,
                 ForeColor = C_TEXT,
-                BorderStyle = BorderStyle.None,
-                Font = new Font("Segoe UI", 10.5f),
-                IntegralHeight = false,
-                ItemHeight = 28
+                BorderStyle = BorderStyle.None
             };
             list.Items.AddRange(items);
             list.SelectedIndexChanged += (_, __) => { _lblAutoDeleteStatus.Text = list.SelectedItem?.ToString() ?? "Off"; dlg.DialogResult = DialogResult.OK; dlg.Close(); };
@@ -395,11 +386,9 @@ namespace SecureChat.Client.Forms.Settings
                 FormBorderStyle = FormBorderStyle.FixedDialog
             };
             var lbl = new Label { Text = "Enter code", ForeColor = C_TEXT, AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(12, 12, 12, 4) };
-            var tb = new TextBox { Dock = DockStyle.Top, BackColor = Color.White, ForeColor = C_TEXT, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(12), Height = 28 };
-            var btnOk = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = false, Width = 90, Height = 32, Anchor = AnchorStyles.Right, Padding = new Padding(6, 2, 6, 2), BackColor = C_ACCENT, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-            btnOk.FlatAppearance.BorderSize = 0;
+            var tb = new TextBox { Dock = DockStyle.Top, BackColor = Color.FromArgb(30, 40, 52), ForeColor = C_TEXT, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(12), Height = 28 };
+            var btnOk = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = false, Width = 90, Height = 32, Anchor = AnchorStyles.Right, Padding = new Padding(6, 2, 6, 2) };
             var pnlBtn = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(0, 4, 12, 8) };
-            pnlBtn.BackColor = C_BG;
             pnlBtn.Controls.Add(btnOk);
             btnOk.Location = new Point(pnlBtn.Width - btnOk.Width, 4);
             pnlBtn.Resize += (_, __) => btnOk.Location = new Point(pnlBtn.Width - btnOk.Width, 4);
@@ -431,11 +420,9 @@ namespace SecureChat.Client.Forms.Settings
                 FormBorderStyle = FormBorderStyle.FixedDialog
             };
             var lbl = new Label { Text = "Enter new email", ForeColor = C_TEXT, AutoSize = true, Dock = DockStyle.Top, Padding = new Padding(12, 12, 12, 4) };
-            var tb = new TextBox { Dock = DockStyle.Top, BackColor = Color.White, ForeColor = C_TEXT, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(12), Height = 28 };
-            var btnOk = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = false, Width = 90, Height = 32, Anchor = AnchorStyles.Right, Padding = new Padding(6, 2, 6, 2), BackColor = C_ACCENT, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-            btnOk.FlatAppearance.BorderSize = 0;
+            var tb = new TextBox { Dock = DockStyle.Top, BackColor = Color.FromArgb(30, 40, 52), ForeColor = C_TEXT, BorderStyle = BorderStyle.FixedSingle, Margin = new Padding(12), Height = 28 };
+            var btnOk = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = false, Width = 90, Height = 32, Anchor = AnchorStyles.Right, Padding = new Padding(6, 2, 6, 2) };
             var pnlBtn = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(0, 4, 12, 8) };
-            pnlBtn.BackColor = C_BG;
             pnlBtn.Controls.Add(btnOk);
             btnOk.Location = new Point(pnlBtn.Width - btnOk.Width, 4);
             pnlBtn.Resize += (_, __) => btnOk.Location = new Point(pnlBtn.Width - btnOk.Width, 4);
@@ -447,10 +434,40 @@ namespace SecureChat.Client.Forms.Settings
             return (res, tb.Text?.Trim() ?? string.Empty);
         }
 
-        private static Image LoadIcon(string key)
+        private static Image? LoadIcon(string key)
         {
             var file = key.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? key : key + ".png";
-            return SettingsGlyphIcons.Create(file, 24);
+            var searchPaths = new[]
+            {
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "info", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "chat", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "settings", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "profile", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "menu", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", file),
+                Path.Combine(AppContext.BaseDirectory, "Resources", file)
+            };
+            foreach (var path in searchPaths)
+            {
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        using var img = Image.FromFile(path);
+                        return new Bitmap(img);
+                    }
+                    catch { }
+                }
+            }
+            // placeholder to avoid null icons
+            Bitmap bmp = new Bitmap(24, 24);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.Clear(Color.Transparent);
+                using var pen = new Pen(Color.Gray, 2);
+                g.DrawRectangle(pen, 2, 2, 20, 20);
+            }
+            return bmp;
         }
 
         private void UpdateTwoStepStatus()
@@ -511,37 +528,14 @@ namespace SecureChat.Client.Forms.Settings
         public frmTwoStepStart()
         {
             Text = "Two-Step Verification";
-            Size = new Size(420, 230);
-            MinimumSize = new Size(420, 230);
+            Size = new Size(360, 200);
             StartPosition = FormStartPosition.CenterParent;
-            BackColor = Color.White;
-            ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D);
+            BackColor = Color.FromArgb(0x17, 0x21, 0x2B);
+            ForeColor = Color.White;
             Font = new Font("Segoe UI", 10f);
-
-            var lblTitle = new Label
-            {
-                Text = "Protect your account",
-                Font = new Font("Segoe UI Semibold", 12f),
-                ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D),
-                AutoSize = true,
-                Location = new Point(20, 20)
-            };
-
-            var lblSub = new Label
-            {
-                Text = "Set a cloud password for two-step verification.",
-                Font = new Font("Segoe UI", 9.8f),
-                ForeColor = Color.FromArgb(0x7A, 0x8A, 0x99),
-                AutoSize = false,
-                Size = new Size(360, 48),
-                Location = new Point(20, 52)
-            };
-
-            var btn = new Button { Text = "Create Password", AutoSize = false, Width = 160, Height = 34, FlatStyle = FlatStyle.Flat, Location = new Point(20, 104), BackColor = Color.FromArgb(0x33, 0x99, 0xFF), ForeColor = Color.White };
+            var btn = new Button { Text = "Create Password", AutoSize = true, FlatStyle = FlatStyle.Flat, Location = new Point(20, 60) };
             btn.FlatAppearance.BorderSize = 0;
             btn.Click += (_, __) => { DialogResult = DialogResult.OK; Close(); };
-            Controls.Add(lblTitle);
-            Controls.Add(lblSub);
             Controls.Add(btn);
         }
     }
@@ -555,14 +549,14 @@ namespace SecureChat.Client.Forms.Settings
             Text = "Set Password";
             Size = new Size(360, 220);
             StartPosition = FormStartPosition.CenterParent;
-            BackColor = Color.White;
-            ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D);
+            BackColor = Color.FromArgb(0x17, 0x21, 0x2B);
+            ForeColor = Color.White;
             Font = new Font("Segoe UI", 10f);
-            var l1 = new Label { Text = "Enter new password", ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D), AutoSize = true, Location = new Point(12, 14) };
-            _p1 = new TextBox { Location = new Point(12, 34), Width = 320, UseSystemPasswordChar = true, BackColor = Color.White, ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D), BorderStyle = BorderStyle.FixedSingle };
-            var l2 = new Label { Text = "Re-enter new password", ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D), AutoSize = true, Location = new Point(12, 74) };
-            _p2 = new TextBox { Location = new Point(12, 94), Width = 320, UseSystemPasswordChar = true, BackColor = Color.White, ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D), BorderStyle = BorderStyle.FixedSingle };
-            var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Location = new Point(220, 138), AutoSize = false, Width = 110, Height = 32, Padding = new Padding(6, 2, 6, 2), BackColor = Color.FromArgb(0x33, 0x99, 0xFF), ForeColor = Color.White };
+            var l1 = new Label { Text = "Enter new password", ForeColor = Color.White, AutoSize = true, Location = new Point(12, 14) };
+            _p1 = new TextBox { Location = new Point(12, 34), Width = 320, UseSystemPasswordChar = true, BackColor = Color.FromArgb(30, 40, 52), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+            var l2 = new Label { Text = "Re-enter new password", ForeColor = Color.White, AutoSize = true, Location = new Point(12, 74) };
+            _p2 = new TextBox { Location = new Point(12, 94), Width = 320, UseSystemPasswordChar = true, BackColor = Color.FromArgb(30, 40, 52), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+            var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, Location = new Point(220, 138), AutoSize = false, Width = 110, Height = 32, Padding = new Padding(6, 2, 6, 2) };
             ok.FlatStyle = FlatStyle.Flat;
             ok.FlatAppearance.BorderSize = 0;
             ok.Click += (_, __) =>
@@ -584,29 +578,18 @@ namespace SecureChat.Client.Forms.Settings
         {
             _onDisable = onDisable ?? (() => { });
             Text = "Manage Password";
-            Size = new Size(380, 220);
+            Size = new Size(360, 200);
             StartPosition = FormStartPosition.CenterParent;
-            BackColor = Color.White;
-            ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D);
+            BackColor = Color.FromArgb(0x17, 0x21, 0x2B);
+            ForeColor = Color.White;
             Font = new Font("Segoe UI", 10f);
-
-            var lblTitle = new Label
-            {
-                Text = "Two-Step Verification",
-                Font = new Font("Segoe UI Semibold", 12f),
-                ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D),
-                AutoSize = true,
-                Location = new Point(20, 18)
-            };
-
-            var btnChange = new Button { Text = "Change Password", AutoSize = false, Width = 170, Height = 34, FlatStyle = FlatStyle.Flat, Location = new Point(20, 58), ForeColor = Color.White, BackColor = Color.FromArgb(0x33, 0x99, 0xFF) };
+            var btnChange = new Button { Text = "Change Password", AutoSize = true, FlatStyle = FlatStyle.Flat, Location = new Point(20, 40) };
             btnChange.FlatAppearance.BorderSize = 0;
             btnChange.Click += (_, __) => { using var pw = new frmTwoStepPassword(); pw.ShowDialog(this); };
-
-            var btnDisable = new Button { Text = "Disable cloud password", AutoSize = false, Width = 170, Height = 34, FlatStyle = FlatStyle.Flat, Location = new Point(20, 102), ForeColor = Color.White, BackColor = Color.FromArgb(0xF1, 0x5B, 0x5B) };
+            var btnDisable = new Button { Text = "Disable cloud password", AutoSize = true, FlatStyle = FlatStyle.Flat, Location = new Point(20, 80), ForeColor = Color.OrangeRed };
             btnDisable.FlatAppearance.BorderSize = 0;
             btnDisable.Click += (_, __) => { _onDisable(); DialogResult = DialogResult.OK; Close(); };
-            Controls.AddRange(new Control[] { lblTitle, btnChange, btnDisable });
+            Controls.AddRange(new Control[] { btnChange, btnDisable });
         }
 
         public frmTwoStepManage() : this(() => { }) { }
