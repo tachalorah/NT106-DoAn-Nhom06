@@ -1,4 +1,5 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -10,19 +11,24 @@ namespace SecureChat.Client.Forms.Settings
 {
     public class frmSettings : Form
     {
-        private static readonly Color C_BG = Color.FromArgb(0x17, 0x21, 0x2B);
-        private static readonly Color C_HOVER = Color.FromArgb(0x20, 0x2B, 0x36);
-        private static readonly Color C_TEXT = Color.White;
-        private static readonly Color C_SUB = Color.Gray;
-        private static readonly Color C_ACCENT = Color.FromArgb(0x2A, 0xAB, 0xEE);
-        private static readonly int ITEM_HEIGHT = 52;
+        private static readonly Color C_BG = Color.White;
+        private static readonly Color C_HOVER = Color.FromArgb(0xF2, 0xF5, 0xF9);
+        private static readonly Color C_TEXT = Color.FromArgb(0x1F, 0x2D, 0x3D);
+        private static readonly Color C_SUB = Color.FromArgb(0x7A, 0x8A, 0x99);
+        private static readonly Color C_ACCENT = Color.FromArgb(0x33, 0x99, 0xFF);
+        private static readonly Color C_SEPARATOR = Color.FromArgb(0xE8, 0xEC, 0xF1);
+        private static readonly int ITEM_HEIGHT = 54;
+        private static readonly int HEADER_PADDING_X = 16;
+        private static readonly int AVATAR_SIZE = 88;
 
         private readonly ProfileModel _profile;
         private Panel _root = null!;
+        private Panel _headerPanel = null!;
         private Label _lblName = null!;
         private Label _lblPhone = null!;
-        private LinkLabel _linkUsername = null!;
+        private Label _lblUsername = null!;
         private Panel _avatarPanel = null!;
+        private readonly List<Panel> _menuItems = new();
 
         public frmSettings(ProfileModel profile)
         {
@@ -44,8 +50,9 @@ namespace SecureChat.Client.Forms.Settings
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(520, 740);
             BackColor = C_BG;
-            Font = new Font("Segoe UI", 10f);
+            Font = TG.FontRegular(10f);
             DoubleBuffered = true;
+            Resize += (_, __) => LayoutHeaderProfileText();
 
             _root = new Panel
             {
@@ -64,77 +71,114 @@ namespace SecureChat.Client.Forms.Settings
             AddMenuItem(ref y, "Notifications and Sounds", "notifications.png", OpenNotifications);
             AddMenuItem(ref y, "Privacy and Security", "privacy.png", OpenPrivacy);
             AddMenuItem(ref y, "Chat Settings", "chat.png", OpenChatSettings);
-            AddMenuItem(ref y, "Folders", "folders.png", ShowPending);
-            AddMenuItem(ref y, "Advanced", "advanced.png", ShowPending);
+            AddMenuItem(ref y, "Advanced", "advanced.png", OpenAdvanced);
             AddMenuItem(ref y, "Speakers and Camera", "devices.png", ShowPending);
             AddMenuItem(ref y, "Language", "language.png", ShowPending, true, "English");
         }
 
         private int BuildHeader(int y)
         {
-            var header = new Panel
+            _headerPanel = new Panel
             {
                 Location = new Point(0, y),
-                Size = new Size(ClientSize.Width, 120),
+                Size = new Size(ClientSize.Width, 176),
                 BackColor = C_BG,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
             };
 
-            var btnClose = FlatIconButton("X");
-            btnClose.Location = new Point(header.Width - btnClose.Width - 12, 12);
+            var lblTitle = new Label
+            {
+                Text = "Settings",
+                Font = TG.FontSemiBold(12.5f),
+                ForeColor = C_TEXT,
+                AutoSize = true,
+                Location = new Point(16, 14),
+                BackColor = Color.Transparent
+            };
+
+            var btnClose = FlatIconButton("✕");
+            btnClose.Location = new Point(_headerPanel.Width - btnClose.Width - 14, 10);
             btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnClose.Click += (_, __) => Close();
 
-            // no menu / ellipsis
             _avatarPanel = new Panel
             {
-                Size = new Size(64, 64),
-                Location = new Point(16, 40),
-                BackColor = Color.FromArgb(0xEE, 0x68, 0x53)
+                Size = new Size(AVATAR_SIZE, AVATAR_SIZE),
+                Location = new Point(HEADER_PADDING_X, 56),
+                BackColor = TG.GetAvatarColor(_profile.FullName)
             };
-            _avatarPanel.Paint += (s, e) =>
+            _avatarPanel.Paint += (_, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 using var path = new GraphicsPath();
                 path.AddEllipse(0, 0, _avatarPanel.Width, _avatarPanel.Height);
                 _avatarPanel.Region = new Region(path);
-                using var f = new Font("Segoe UI Semibold", 18f);
+
+                var avatarImage = LoadAvatarImage(_profile.AvatarPath);
+                if (avatarImage != null)
+                {
+                    e.Graphics.SetClip(path);
+                    e.Graphics.DrawImage(avatarImage, new Rectangle(0, 0, _avatarPanel.Width, _avatarPanel.Height));
+                    e.Graphics.ResetClip();
+                    avatarImage.Dispose();
+                    return;
+                }
+
+                using var f = TG.FontSemiBold(28f);
                 var initials = GetInitials(_profile.FullName);
                 var sz = e.Graphics.MeasureString(initials, f);
-                e.Graphics.DrawString(initials, f, Brushes.White, (_avatarPanel.Width - sz.Width) / 2, (_avatarPanel.Height - sz.Height) / 2);
+                e.Graphics.DrawString(initials, f, Brushes.White,
+                    (_avatarPanel.Width - sz.Width) / 2,    
+                    (_avatarPanel.Height - sz.Height) / 2);
             };
 
             _lblName = new Label
             {
-                Font = new Font("Segoe UI Semibold", 12f),
+                Font = TG.FontSemiBold(17f),
                 ForeColor = C_TEXT,
-                AutoSize = true,
-                Location = new Point(16 + 64 + 12, 36),
-                BackColor = Color.Transparent
-            };
-            _lblPhone = new Label
-            {
-                Font = new Font("Segoe UI", 10f),
-                ForeColor = C_SUB,
-                AutoSize = true,
-                Location = new Point(_lblName.Left, 58),
-                BackColor = Color.Transparent
-            };
-            _linkUsername = new LinkLabel
-            {
-                Font = new Font("Segoe UI", 10f),
-                LinkColor = C_ACCENT,
-                ActiveLinkColor = C_ACCENT,
-                VisitedLinkColor = C_ACCENT,
-                AutoSize = true,
-                Location = new Point(_lblName.Left, 76),
-                BackColor = Color.Transparent
+                AutoSize = false,
+                AutoEllipsis = true,
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.MiddleLeft
             };
 
-            header.Controls.AddRange(new Control[] { btnClose, _avatarPanel, _lblName, _lblPhone, _linkUsername });
-            _root.Controls.Add(header);
+            _lblPhone = new Label
+            {
+                Font = TG.FontRegular(11.2f),
+                ForeColor = C_SUB,
+                AutoSize = false,
+                AutoEllipsis = true,
+                UseCompatibleTextRendering = true,
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.TopLeft
+            };
+
+            _lblUsername = new Label
+            {
+                Font = TG.FontRegular(12f),
+                AutoSize = false,
+                AutoEllipsis = true,
+                UseCompatibleTextRendering = true,
+                ForeColor = C_ACCENT,
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.TopLeft
+            };
+
+            var headerSep = new Panel
+            {
+                Dock = DockStyle.Bottom,
+                Height = 1,
+                BackColor = C_SEPARATOR
+            };
+
+            _headerPanel.Controls.AddRange(new Control[]
+            {
+                lblTitle, btnClose, _avatarPanel, _lblName, _lblPhone, _lblUsername, headerSep
+            });
+
+            _root.Controls.Add(_headerPanel);
             RefreshHeader();
-            return header.Bottom;
+            return _headerPanel.Bottom;
         }
 
         private void AddMenuItem(ref int y, string text, string iconFile, Action onClick, bool showExtraText = false, string extraText = "")
@@ -155,9 +199,9 @@ namespace SecureChat.Client.Forms.Settings
             var icon = new PictureBox
             {
                 Size = new Size(24, 24),
-                Location = new Point(16, (ITEM_HEIGHT - 24) / 2),
+                Location = new Point(20, (ITEM_HEIGHT - 24) / 2),
                 SizeMode = PictureBoxSizeMode.Zoom,
-                Image = LoadIcon(iconFile),
+                Image = SettingsGlyphIcons.Create(iconFile, 24),
                 BackColor = Color.Transparent
             };
             icon.MouseEnter += (_, __) => panel.BackColor = C_HOVER;
@@ -167,10 +211,10 @@ namespace SecureChat.Client.Forms.Settings
             var lbl = new Label
             {
                 Text = text,
-                Font = new Font("Segoe UI", 10.5f),
+                Font = TG.FontRegular(12.2f),
                 ForeColor = C_TEXT,
                 AutoSize = true,
-                Location = new Point(52, (ITEM_HEIGHT - 20) / 2),
+                Location = new Point(68, (ITEM_HEIGHT - 22) / 2),
                 BackColor = Color.Transparent
             };
             lbl.MouseEnter += (_, __) => panel.BackColor = C_HOVER;
@@ -185,7 +229,7 @@ namespace SecureChat.Client.Forms.Settings
                 var trailing = new Label
                 {
                     Text = extraText,
-                    Font = new Font("Segoe UI", 10f),
+                    Font = TG.FontRegular(12f),
                     ForeColor = C_ACCENT,
                     AutoSize = true,
                     BackColor = Color.Transparent
@@ -194,7 +238,9 @@ namespace SecureChat.Client.Forms.Settings
                 trailing.MouseLeave += (_, __) => panel.BackColor = C_BG;
                 trailing.Click += (_, __) => onClick();
                 panel.Controls.Add(trailing);
-                panel.Resize += (_, __) => trailing.Location = new Point(panel.Width - trailing.Width - 16, (ITEM_HEIGHT - trailing.Height) / 2);
+
+                panel.Resize += (_, __) =>
+                    trailing.Location = new Point(panel.Width - trailing.Width - 16, (ITEM_HEIGHT - trailing.Height) / 2);
                 trailing.Location = new Point(panel.Width - trailing.Width - 16, (ITEM_HEIGHT - trailing.Height) / 2);
             }
 
@@ -202,11 +248,12 @@ namespace SecureChat.Client.Forms.Settings
             {
                 Dock = DockStyle.Bottom,
                 Height = 1,
-                BackColor = Color.FromArgb(34, 46, 58)
+                BackColor = C_SEPARATOR
             };
             panel.Controls.Add(sep);
 
             _root.Controls.Add(panel);
+            _menuItems.Add(panel);
             y += ITEM_HEIGHT;
         }
 
@@ -241,6 +288,13 @@ namespace SecureChat.Client.Forms.Settings
             dlg.ShowDialog(this);
         }
 
+        private void OpenAdvanced()
+        {
+            using var dlg = new frmAdvanced();
+            dlg.StartPosition = FormStartPosition.CenterParent;
+            dlg.ShowDialog(this);
+        }
+
         private void ShowPending()
         {
             MessageBox.Show(this, "Feature coming soon", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -255,16 +309,16 @@ namespace SecureChat.Client.Forms.Settings
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.Transparent,
-                ForeColor = C_TEXT,
-                Font = new Font("Segoe UI", 11f, FontStyle.Bold),
+                ForeColor = C_SUB,
+                Font = TG.FontSemiBold(12f),
                 TabStop = false,
                 Cursor = Cursors.Hand,
                 UseCompatibleTextRendering = true,
-                Padding = new Padding(6, 2, 6, 2)
+                Padding = new Padding(8, 3, 8, 3)
             };
             b.FlatAppearance.BorderSize = 0;
-            b.FlatAppearance.MouseOverBackColor = Color.FromArgb(20, 255, 255, 255);
-            b.FlatAppearance.MouseDownBackColor = Color.FromArgb(30, 255, 255, 255);
+            b.FlatAppearance.MouseOverBackColor = C_HOVER;
+            b.FlatAppearance.MouseDownBackColor = Color.FromArgb(0xEA, 0xEA, 0xEA);
             return b;
         }
 
@@ -278,6 +332,7 @@ namespace SecureChat.Client.Forms.Settings
                 var second = parts[0].Length > first.Length ? GetFirstGrapheme(parts[0].Substring(first.Length)) : string.Empty;
                 return (first + second).ToUpperInvariant();
             }
+
             var firstWord = GetFirstGrapheme(parts[0]);
             var lastWord = GetFirstGrapheme(parts[^1]);
             return (firstWord + lastWord).ToUpperInvariant();
@@ -289,54 +344,92 @@ namespace SecureChat.Client.Forms.Settings
             return e.MoveNext() ? e.GetTextElement() : string.Empty;
         }
 
-        private static Image? LoadIcon(string fileName)
+        private void RefreshHeader()
+        {
+            _lblName.Text = string.IsNullOrWhiteSpace(_profile.FullName) ? "Unknown User" : _profile.FullName;
+            _lblPhone.Text = string.IsNullOrWhiteSpace(_profile.PhoneNumber) ? "+84 --- --- ---" : _profile.PhoneNumber;
+            _avatarPanel.BackColor = TG.GetAvatarColor(_profile.FullName);
+
+            _lblUsername.Text = string.IsNullOrWhiteSpace(_profile.Username) ? "Add username" : _profile.Username;
+            _lblUsername.ForeColor = string.IsNullOrWhiteSpace(_profile.Username) ? C_SUB : C_ACCENT;
+
+            LayoutHeaderProfileText();
+
+            _avatarPanel.Invalidate();
+        }
+
+        private static Image? LoadAvatarImage(string avatarPath)
         {
             try
             {
-                string mapped = fileName switch
-                {
-                    "my_account.png" => "profile_manage.png",
-                    "notifications.png" => "notifications.png",
-                    "privacy.png" => "lock.png",
-                    "chat.png" => "chat.png",
-                    "folders.png" => "folders.png",
-                    "advanced.png" => "settings.png",
-                    "devices.png" => "devices.png",
-                    "language.png" => "language.png",
-                    _ => fileName
-                };
-
-                var searchPaths = new[]
-                {
-                    Path.Combine(Application.StartupPath, "Resources", "Icon", mapped),
-                    Path.Combine(AppContext.BaseDirectory, "Resources", "Icon", mapped),
-                    Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "profile", mapped),
-                    Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "settings", mapped),
-                    Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "menu", mapped),
-                    Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", "limits", mapped),
-                    Path.Combine(AppContext.BaseDirectory, "Resources", "Icons", mapped),
-                    Path.Combine(AppContext.BaseDirectory, "Resources", mapped)
-                };
-                foreach (var path in searchPaths)
-                {
-                    if (File.Exists(path))
-                    {
-                        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                        using var img = Image.FromStream(fs);
-                        return new Bitmap(img);
-                    }
-                }
+                if (string.IsNullOrWhiteSpace(avatarPath)) return null;
+                if (!File.Exists(avatarPath)) return null;
+                using var fs = new FileStream(avatarPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var img = Image.FromStream(fs);
+                return new Bitmap(img);
             }
-            catch { }
-            return null;
+            catch
+            {
+                return null;
+            }
         }
 
-        private void RefreshHeader()
+        private void LayoutHeaderProfileText()
         {
-            _lblName.Text = _profile.FullName;
-            _lblPhone.Text = _profile.PhoneNumber;
-            _linkUsername.Text = string.IsNullOrWhiteSpace(_profile.Username) ? "Add username" : _profile.Username;
-            _avatarPanel.Invalidate();
+            if (_headerPanel == null || _lblName == null || _lblPhone == null || _lblUsername == null)
+                return;
+
+            int textLeft = _avatarPanel.Right + 18;
+            int textWidth = Math.Max(120, _headerPanel.Width - textLeft - HEADER_PADDING_X);
+
+            int nameHeight;
+            using (var g = _headerPanel.CreateGraphics())
+            {
+                nameHeight = TextRenderer.MeasureText(
+                    g,
+                    _lblName.Text,
+                    _lblName.Font,
+                    new Size(textWidth, int.MaxValue),
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPadding).Height;
+            }
+
+            nameHeight = Math.Max(32, Math.Min(nameHeight, 56));
+            int nameTop = _avatarPanel.Top + 4;
+
+            int phoneHeight;
+            int usernameHeight;
+            using (var g = _headerPanel.CreateGraphics())
+            {
+                phoneHeight = TextRenderer.MeasureText(g, _lblPhone.Text, _lblPhone.Font, new Size(textWidth, int.MaxValue), TextFormatFlags.NoPadding).Height;
+                usernameHeight = TextRenderer.MeasureText(g, _lblUsername.Text, _lblUsername.Font, new Size(textWidth, int.MaxValue), TextFormatFlags.NoPadding).Height;
+            }
+
+            phoneHeight = Math.Max(22, phoneHeight + 4);
+            usernameHeight = Math.Max(24, usernameHeight + 6);
+
+            _lblName.SetBounds(textLeft, nameTop, textWidth, nameHeight);
+            _lblPhone.SetBounds(textLeft, _lblName.Bottom + 6, textWidth, phoneHeight);
+            _lblUsername.SetBounds(textLeft, _lblPhone.Bottom + 6, textWidth, usernameHeight);
+
+            int neededHeaderHeight = Math.Max(_avatarPanel.Bottom + 24, _lblUsername.Bottom + 24);
+            if (_headerPanel.Height != neededHeaderHeight)
+            {
+                _headerPanel.Height = neededHeaderHeight;
+                RelayoutMenuItems();
+            }
+        }
+
+        private void RelayoutMenuItems()
+        {
+            if (_root == null || _headerPanel == null) return;
+
+            int y = _headerPanel.Bottom + 8;
+            foreach (var panel in _menuItems)
+            {
+                panel.Location = new Point(0, y);
+                y += ITEM_HEIGHT;
+            }
         }
     }
+
 }
