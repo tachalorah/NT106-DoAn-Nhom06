@@ -28,6 +28,7 @@ namespace SecureChat.Client.Forms.Settings
         private Label _lblPhone = null!;
         private Label _lblUsername = null!;
         private Panel _avatarPanel = null!;
+        private Label? _lblLanguageMenu;
         private readonly List<Panel> _menuItems = new();
 
         public frmSettings(ProfileModel profile)
@@ -72,8 +73,10 @@ namespace SecureChat.Client.Forms.Settings
             AddMenuItem(ref y, "Privacy and Security", "privacy.png", OpenPrivacy);
             AddMenuItem(ref y, "Chat Settings", "chat.png", OpenChatSettings);
             AddMenuItem(ref y, "Advanced", "advanced.png", OpenAdvanced);
-            AddMenuItem(ref y, "Speakers and Camera", "devices.png", ShowPending);
-            AddMenuItem(ref y, "Language", "language.png", ShowPending, true, "English");
+            AddMenuItem(ref y, "Speakers and Camera", "devices.png", OpenSpeakersCamera);
+            AddMenuItem(ref y, "Language", "language.png", OpenLanguage, true, LanguagePrefs.GetDisplayLanguageName(), lbl => _lblLanguageMenu = lbl);
+
+            UiLocalization.ApplyToForm(this);
         }
 
         private int BuildHeader(int y)
@@ -181,7 +184,7 @@ namespace SecureChat.Client.Forms.Settings
             return _headerPanel.Bottom;
         }
 
-        private void AddMenuItem(ref int y, string text, string iconFile, Action onClick, bool showExtraText = false, string extraText = "")
+        private void AddMenuItem(ref int y, string text, string iconFile, Action onClick, bool showExtraText = false, string extraText = "", Action<Label>? onTrailingCreated = null)
         {
             var panel = new Panel
             {
@@ -238,6 +241,7 @@ namespace SecureChat.Client.Forms.Settings
                 trailing.MouseLeave += (_, __) => panel.BackColor = C_BG;
                 trailing.Click += (_, __) => onClick();
                 panel.Controls.Add(trailing);
+                onTrailingCreated?.Invoke(trailing);
 
                 panel.Resize += (_, __) =>
                     trailing.Location = new Point(panel.Width - trailing.Width - 16, (ITEM_HEIGHT - trailing.Height) / 2);
@@ -293,6 +297,23 @@ namespace SecureChat.Client.Forms.Settings
             using var dlg = new frmAdvanced();
             dlg.StartPosition = FormStartPosition.CenterParent;
             dlg.ShowDialog(this);
+        }
+
+        private void OpenSpeakersCamera()
+        {
+            using var dlg = new frmSpeakersCamera();
+            dlg.StartPosition = FormStartPosition.CenterParent;
+            dlg.ShowDialog(this);
+        }
+
+        private void OpenLanguage()
+        {
+            using var dlg = new frmLanguage();
+            dlg.StartPosition = FormStartPosition.CenterParent;
+            if (dlg.ShowDialog(this) == DialogResult.OK && _lblLanguageMenu != null)
+            {
+                _lblLanguageMenu.Text = LanguagePrefs.GetDisplayLanguageName();
+            }
         }
 
         private void ShowPending()

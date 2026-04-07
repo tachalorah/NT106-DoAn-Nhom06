@@ -20,7 +20,6 @@ namespace SecureChat.Client.Forms.Settings
         private Panel _header = null!;
         private Label _secDataStorage = null!;
         private Panel _rowDownloadPath = null!;
-        private Panel _rowManageStorage = null!;
         private Panel _rowDownloads = null!;
         private Panel _rowAskEachFile = null!;
         private Panel _divider1 = null!;
@@ -72,16 +71,15 @@ namespace SecureChat.Client.Forms.Settings
             _content = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 1000,
+                Height = 900,
                 BackColor = C_BG
             };
             scroll.Controls.Add(_content);
 
             _header = CreateHeaderRow();
             _secDataStorage = CreateSectionLabel("Data and storage");
-            _rowDownloadPath = CreateActionRow("Download path", "folders.png", () => OpenDownloadPathOptions(), out _lblDownloadPath, "Default folder");
-            _rowManageStorage = CreateActionRow("Manage local storage", "storage_local.png", () => MessageBox.Show(this, "Coming soon", "Info"), out _);
-            _rowDownloads = CreateActionRow("Downloads", "downloads_arrow.png", () => MessageBox.Show(this, "Coming soon", "Info"), out _);
+            _rowDownloadPath = CreateActionRow("Download path", "folders.png", OpenDownloadPathOptions, out _lblDownloadPath, "Default folder");
+            _rowDownloads = CreateActionRow("Downloads", "downloads_arrow.png", OpenDownloads, out _);
             _rowAskEachFile = CreateAskDownloadToggleRow(out _chkAskDownloadPath);
             _divider1 = CreateSectionDivider();
 
@@ -100,7 +98,6 @@ namespace SecureChat.Client.Forms.Settings
                 _header,
                 _secDataStorage,
                 _rowDownloadPath,
-                _rowManageStorage,
                 _rowDownloads,
                 _rowAskEachFile,
                 _divider1,
@@ -129,6 +126,7 @@ namespace SecureChat.Client.Forms.Settings
             _chkUseMonochromeIcon.CheckedChanged += (_, __) => SaveSettings();
 
             LayoutRows();
+            UiLocalization.ApplyToForm(this);
         }
 
         private void LayoutRows()
@@ -147,7 +145,6 @@ namespace SecureChat.Client.Forms.Settings
                 y += 50;
             }
 
-            Place(_rowManageStorage, 0, y, width, 50); y += 50;
             Place(_rowDownloads, 0, y, width, 50); y += 50;
             Place(_rowAskEachFile, 0, y, width, 54); y += 54;
 
@@ -167,18 +164,15 @@ namespace SecureChat.Client.Forms.Settings
             _content.Height = y + 18;
         }
 
-        private static void Place(Control c, int x, int y, int w, int h)
+        private static void Place(Control control, int x, int y, int w, int h)
         {
-            c.Location = new Point(x, y);
-            c.Size = new Size(w, h);
+            control.Location = new Point(x, y);
+            control.Size = new Size(w, h);
         }
 
         private Panel CreateHeaderRow()
         {
-            var header = new Panel
-            {
-                BackColor = C_BG
-            };
+            var header = new Panel { BackColor = C_BG };
 
             var back = new PictureBox
             {
@@ -216,12 +210,7 @@ namespace SecureChat.Client.Forms.Settings
             close.Click += (_, __) => Close();
             header.Resize += (_, __) => close.Location = new Point(header.Width - close.Width - 14, 16);
 
-            var sep = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 1,
-                BackColor = C_DIVIDER
-            };
+            var sep = new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = C_DIVIDER };
 
             header.Controls.Add(back);
             header.Controls.Add(title);
@@ -243,21 +232,14 @@ namespace SecureChat.Client.Forms.Settings
             };
         }
 
-        private Panel CreateSectionDivider()
+        private static Panel CreateSectionDivider()
         {
-            return new Panel
-            {
-                BackColor = Color.FromArgb(0xF4, 0xF6, 0xF9)
-            };
+            return new Panel { BackColor = Color.FromArgb(0xF4, 0xF6, 0xF9) };
         }
 
         private Panel CreateActionRow(string text, string iconFile, Action onClick, out Label trailingLabel, string trailing = "")
         {
-            var row = new Panel
-            {
-                BackColor = C_BG,
-                Cursor = Cursors.Hand
-            };
+            var row = new Panel { BackColor = C_BG, Cursor = Cursors.Hand };
 
             var icon = new PictureBox
             {
@@ -292,16 +274,11 @@ namespace SecureChat.Client.Forms.Settings
 
             row.Resize += (_, __) =>
             {
-                int width = Math.Min(220, Math.Max(120, row.Width / 2));
-                right.SetBounds(row.Width - width - 18, 12, width, 24);
+                int rw = Math.Min(220, Math.Max(120, row.Width / 2));
+                right.SetBounds(row.Width - rw - 18, 12, rw, 24);
             };
 
-            var sep = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 1,
-                BackColor = C_DIVIDER
-            };
+            var sep = new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = C_DIVIDER };
 
             foreach (Control c in new Control[] { row, icon, lbl, right })
             {
@@ -319,10 +296,7 @@ namespace SecureChat.Client.Forms.Settings
 
         private Panel CreateAskDownloadToggleRow(out CheckBox toggle)
         {
-            var row = new Panel
-            {
-                BackColor = C_BG
-            };
+            var row = new Panel { BackColor = C_BG };
 
             var lbl = new Label
             {
@@ -345,19 +319,14 @@ namespace SecureChat.Client.Forms.Settings
                 Cursor = Cursors.Hand
             };
             var t = toggle;
-            toggle.FlatAppearance.BorderSize = 0;
-            toggle.Paint += (_, e) => DrawToggle(t, e.Graphics);
+            t.FlatAppearance.BorderSize = 0;
+            t.Paint += (_, e) => DrawToggle(t, e.Graphics);
             row.Resize += (_, __) => t.Location = new Point(row.Width - t.Width - 24, (row.Height - t.Height) / 2);
 
-            var sep = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = 1,
-                BackColor = C_DIVIDER
-            };
+            var sep = new Panel { Dock = DockStyle.Bottom, Height = 1, BackColor = C_DIVIDER };
 
             row.Controls.Add(lbl);
-            row.Controls.Add(toggle);
+            row.Controls.Add(t);
             row.Controls.Add(sep);
             return row;
         }
@@ -378,6 +347,13 @@ namespace SecureChat.Client.Forms.Settings
 
             int thumbX = chk.Checked ? rect.Right - rect.Height + 2 : rect.Left + 2;
             g.FillEllipse(thumbBrush, thumbX, rect.Top + 2, rect.Height - 4, rect.Height - 4);
+        }
+
+        private void OpenDownloads()
+        {
+            using var dlg = new frmDownloads();
+            dlg.StartPosition = FormStartPosition.CenterParent;
+            dlg.ShowDialog(this);
         }
 
         private void OpenDownloadPathOptions()
@@ -409,7 +385,7 @@ namespace SecureChat.Client.Forms.Settings
                 BackColor = Color.Transparent
             };
 
-            var rbSystem = CreatePathOption("Folder in system «Downloads»", new Point(28, 76), s.DownloadPathMode == 0);
+            var rbSystem = CreatePathOption("Default app folder", new Point(28, 76), s.DownloadPathMode == 0);
             var rbTemp = CreatePathOption("Temp folder, cleared on logout or uninstall", new Point(28, 122), s.DownloadPathMode == 1);
             var rbCustom = CreatePathOption("Custom folder, cleared only manually", new Point(28, 168), s.DownloadPathMode == 2);
 
@@ -512,7 +488,7 @@ namespace SecureChat.Client.Forms.Settings
             return s.DownloadPathMode switch
             {
                 1 => "Temp folder",
-                2 => string.IsNullOrWhiteSpace(s.CustomDownloadPath) ? "Custom folder" : "Custom folder",
+                2 => "Custom folder",
                 _ => "Default folder"
             };
         }
@@ -532,9 +508,7 @@ namespace SecureChat.Client.Forms.Settings
         private sealed class ToggleCheckRow : Panel
         {
             private readonly Panel _box;
-            private readonly Label _label;
             private readonly Color _accent;
-            private readonly Color _divider;
             private bool _checked;
 
             public event EventHandler? CheckedChanged;
@@ -554,7 +528,6 @@ namespace SecureChat.Client.Forms.Settings
             public ToggleCheckRow(string text, bool initial, Color bg, Color textColor, Color accent, Color divider)
             {
                 _accent = accent;
-                _divider = divider;
                 _checked = initial;
 
                 BackColor = bg;
@@ -569,7 +542,7 @@ namespace SecureChat.Client.Forms.Settings
                 };
                 _box.Paint += Box_Paint;
 
-                _label = new Label
+                var label = new Label
                 {
                     Text = text,
                     AutoSize = true,
@@ -584,16 +557,16 @@ namespace SecureChat.Client.Forms.Settings
                 {
                     Dock = DockStyle.Bottom,
                     Height = 1,
-                    BackColor = _divider
+                    BackColor = divider
                 };
 
                 Controls.Add(_box);
-                Controls.Add(_label);
+                Controls.Add(label);
                 Controls.Add(sep);
 
                 Click += (_, __) => Checked = !Checked;
                 _box.Click += (_, __) => Checked = !Checked;
-                _label.Click += (_, __) => Checked = !Checked;
+                label.Click += (_, __) => Checked = !Checked;
             }
 
             private void Box_Paint(object? sender, PaintEventArgs e)
@@ -637,15 +610,7 @@ namespace SecureChat.Client.Forms.Settings
                 try
                 {
                     var path = Path.Combine(AppContext.BaseDirectory, FileName);
-                    var data = string.Join("|",
-                        DownloadPathMode,
-                        CustomDownloadPath,
-                        AskDownloadPathEachFile,
-                        ShowChatName,
-                        TotalUnreadCount,
-                        UseSystemWindowFrame,
-                        ShowTaskbarIcon,
-                        UseMonochromeIcon);
+                    var data = string.Join("|", DownloadPathMode, CustomDownloadPath, AskDownloadPathEachFile, ShowChatName, TotalUnreadCount, UseSystemWindowFrame, ShowTaskbarIcon, UseMonochromeIcon);
                     File.WriteAllText(path, data, Encoding.UTF8);
                 }
                 catch { }
@@ -684,6 +649,7 @@ namespace SecureChat.Client.Forms.Settings
                     }
                 }
                 catch { }
+
                 return s;
             }
         }
