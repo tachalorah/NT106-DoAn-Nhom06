@@ -24,6 +24,7 @@
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 		<PackageReference Include="OpenCvSharp4" Version="4.13.0.20260308" />
 		<PackageReference Include="OpenCvSharp4.Windows" Version="4.13.0.20260302" />
+        <PackageReference Include="System.Management" Version="8.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>

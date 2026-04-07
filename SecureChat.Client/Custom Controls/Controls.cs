@@ -190,10 +190,10 @@ namespace SecureChat.Client
         private bool _isFocused;
         private Label _placeholderLabel = null!;
 
-        public string Text { get => _tb.Text; set => _tb.Text = value; }
+        public new string Text { get => _tb.Text; set => _tb.Text = value; }
         public char PasswordChar { get => _tb.PasswordChar; set => _tb.PasswordChar = value; }
         public bool Multiline { get => _tb.Multiline; set => _tb.Multiline = value; }
-        public event EventHandler TextChanged { add => _tb.TextChanged += value; remove => _tb.TextChanged -= value; }
+        public new event EventHandler TextChanged { add => _tb.TextChanged += value; remove => _tb.TextChanged -= value; }
 
         public TelegramTextBox()
         {
