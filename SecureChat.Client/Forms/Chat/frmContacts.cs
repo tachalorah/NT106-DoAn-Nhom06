@@ -67,7 +67,8 @@ namespace SecureChat.Client
         private readonly TabControl _contactSubTabs;
         private readonly Panel _pnlFriends, _pnlGroups; // Khác với tab cha Lời mời, tab con của Danh sách được khai báo toàn cục.
                                                         // Khi 1 người dùng được cập nhật hay thay đổi trạng thái thì không ảnh hưởng đến còn lại
-                                                        // ----------------------- Thiếu tab con ""Người dùng đã bị chặn"" ----------------------------------------
+
+        // ----------------------- Thiếu tab con của lời mời "Người dùng đã bị chặn"" ----------------------------------------
 
         /*
         _______________________________________________________
@@ -85,6 +86,7 @@ namespace SecureChat.Client
 
         // Tab con trong "Lời mời" để chia Đã nhận / Đã gửi.
         private readonly TabControl _requestSubTabs;
+        private readonly Panel _pnlBlockedUsers; // Panel mới cho tab "Đã chặn"
         // Panel cho 2 tab con được khai báo cục bộ
         // Trong lập trình WinForms, thay vì tìm cách chèn thêm 1 dòng vào giữa một cái Panel đang có sẵn, người ta thường chọn cách xóa sạch và vẽ lại:
 
@@ -100,6 +102,7 @@ namespace SecureChat.Client
         private List<ContactItem> _friends = new List<ContactItem>();
         private List<ContactItem> _groups = new List<ContactItem>();
         private List<FriendRequestItem> _requests = new List<FriendRequestItem>();
+        private List<ContactItem> _blockedUsers = new List<ContactItem>();
 
         public frmContacts()
         {
@@ -113,9 +116,12 @@ namespace SecureChat.Client
             _tabRequests = new TabPage("  Lời mời    ") { BackColor = Color.White, UseVisualStyleBackColor = false };
             _tabSearch = new TabPage("  Tìm kiếm  ") { BackColor = Color.White, UseVisualStyleBackColor = false };
 
+
             _contactSubTabs = new TabControl();
             _pnlFriends = new Panel();
             _pnlGroups = new Panel();
+
+            _pnlBlockedUsers = new Panel();
 
             _requestSubTabs = new TabControl();
 
@@ -143,7 +149,7 @@ namespace SecureChat.Client
 
             _groups = new List<ContactItem>
             {
-                new() { Type = ContactType.Group, ConversationId = "conv-g01", DisplayName = "Nhóm NT106 Q22", MemberCount = 5, LastSeenAt = "2025-03-31T07:00:00Z" },
+                new() { Type = ContactType.Group, ConversationId = "conv-g01", DisplayName = "Nhóm NT106.Q22", MemberCount = 5, LastSeenAt = "2025-03-31T07:00:00Z" },
                 new() { Type = ContactType.Group, ConversationId = "conv-g02", DisplayName = "Nhóm An Toàn TT", MemberCount = 8, LastSeenAt = "2025-03-30T18:00:00Z" },
             };
 
@@ -153,6 +159,12 @@ namespace SecureChat.Client
                 new() { RequestId = "req-002", SenderId = "usr-011", RecipientId = "usr-me", DisplayName = "Phạm Văn D", Username = "phamvand", MutualCount = 0, IsIncoming = true, CreatedAt = "2025-03-29T15:30:00Z" },
                 new() { RequestId = "req-003", SenderId = "usr-012", RecipientId = "usr-me", DisplayName = "Lê Thị E", Username = "lethie", MutualCount = 5, IsIncoming = true, CreatedAt = "2025-03-28T08:00:00Z" },
                 new() { RequestId = "req-004", SenderId = "usr-me", RecipientId = "usr-013", DisplayName = "Nguyễn Quốc K", Username = "nguyenquock", MutualCount = 1, IsIncoming = false, CreatedAt = "2025-03-31T06:00:00Z" },
+            };
+
+            _blockedUsers = new List<ContactItem>
+            {
+                new() { Type = ContactType.Friend, UserId = "usr-005", DisplayName = "Spam Bot", Username = "spambot2024", IsOnline = false, Status = FriendStatus.Blocked },
+                new() { Type = ContactType.Friend, UserId = "usr-006", DisplayName = "Troll User", Username = "trolluser", IsOnline = true, Status = FriendStatus.Blocked },
             };
 
             _incomingCount = _requests.FindAll(r => r.IsIncoming).Count;
@@ -166,6 +178,10 @@ namespace SecureChat.Client
             Size = new Size(440, 620);
             MinimumSize = new Size(360, 560);
             StartPosition = FormStartPosition.CenterParent;
+
+            // FormBorderStyle = FormBorderStyle.FixedSingle; // Viền cố định, không kéo được
+            FormBorderStyle = FormBorderStyle.Sizable; // Cho phép kéo thay đổi kích thước
+
             BackColor = Color.White;
             MaximizeBox = false; // chặn nút phóng to
             Font = TG.FontRegular(9.5f);
@@ -222,6 +238,9 @@ namespace SecureChat.Client
             Controls.Add(pnlContent);
             Controls.Add(header);
             // KHÔNG dùng BringToFront() nữa
+
+
+            LoadBlockedUsers();
         }
 
         // Hàm xử lý resize panel. Khi panel thay đổi kích thước khi tôi kéo to nhỏ form,
@@ -276,29 +295,67 @@ namespace SecureChat.Client
             }
         }
 
+        // Dựng tab Danh sách gồm 2 sub-tab
+        // Bạn bè → gọi BuildFriendList() đổ data vào _pnlFriends.
+        // Nhóm   → gọi BuildGroupList() đổ data vào _pnlGroups.
         private void BuildContactsTab()
         {
-            _contactSubTabs.Dock = DockStyle.Fill;
-            _contactSubTabs.Appearance = TabAppearance.FlatButtons;
-            _contactSubTabs.DrawMode = TabDrawMode.OwnerDrawFixed;
-            _contactSubTabs.ItemSize = new Size(0, 30);           // ← auto chia đều 2 tab
-            _contactSubTabs.SizeMode = TabSizeMode.Fixed;
+            _contactSubTabs.Dock = DockStyle.Fill; // Làm cho thanh Tab chiếm toàn bộ diện tích của vùng chứa nó.
+            _contactSubTabs.Appearance = TabAppearance.FlatButtons; // Chuyển kiểu hiển thị từ tab truyền thống sang dạng nút phẳng (giúp tùy biến giao diện dễ hơn).
+            _contactSubTabs.DrawMode = TabDrawMode.OwnerDrawFixed; // Chế độ này báo cho Windows biết rằng "Tôi sẽ tự vẽ (code) giao diện các tab này" thay vì dùng giao diện mặc định của Windows.
+
+            _contactSubTabs.Margin = new Padding(0);
+            _contactSubTabs.Padding = new Point(0, 0); // Ép khoảng cách giữa nội dung và viền tab về 0
+
+            _contactSubTabs.ItemSize = new Size(0, 30); // Đặt chiều cao của thanh tab là 30 pixel. Giá trị 0 ở chiều rộng sẽ tự động điều chỉnh theo SizeMode.
+            // _contactSubTabs.ItemSize = new Size(180, 30); // Size(180, 30): Ép buộc chiều rộng mỗi Tab đúng 180 pixel.
+            // _contactSubTabs.ItemSize = new Size(_contactSubTabs.Width / 2 - 2, 30);
+
+            // _contactSubTabs.SizeMode = TabSizeMode.FillToRight; // Các Tab sẽ tự co giãn để lấp đầy toàn bộ chiều ngang của Control.
+            _contactSubTabs.SizeMode = TabSizeMode.Fixed; // TabSizeMode.Fixed: Tất cả các Tab đều có kích thước bằng hệt nhau
+
+
+            _contactSubTabs.Multiline = false; // Đảm bảo chỉ trên 1 dòng
+
             _contactSubTabs.Font = TG.FontRegular(9f);
+
             _contactSubTabs.DrawItem += (s, e) =>
             {
                 var t = _contactSubTabs.TabPages[e.Index];
                 bool sel = e.Index == _contactSubTabs.SelectedIndex;
-                e.Graphics.FillRectangle(sel ? new SolidBrush(Color.FromArgb(0xE3, 0xF2, 0xFD)) : Brushes.White, e.Bounds);
-                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                e.Graphics.DrawString(t.Text, TG.FontSemiBold(9f), new SolidBrush(sel ? TG.Blue : TG.TextSecondary), e.Bounds, sf);
+
+                e.Graphics.FillRectangle(
+                    sel ? new SolidBrush(Color.FromArgb(0xE3, 0xF2, 0xFD)) : Brushes.White,
+                    e.Bounds
+                );
+
+                using var sf = new StringFormat
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+                e.Graphics.DrawString(
+                    t.Text,
+                    TG.FontSemiBold(9f),
+                    new SolidBrush(sel ? TG.Blue : TG.TextSecondary),
+                    e.Bounds,
+                    sf
+                );
+
+
             };
 
+            // Tạo tab "Bạn bè" với nền trắng.
             var tpFriends = new TabPage("Bạn bè") { BackColor = Color.White, UseVisualStyleBackColor = false };
+            // Tạo tab "Nhóm" với nền trắng.
             var tpGroups = new TabPage("Nhóm") { BackColor = Color.White, UseVisualStyleBackColor = false };
+            // Thêm cả 2 tab này vào thanh điều hướng chính.
             _contactSubTabs.TabPages.AddRange(new[] { tpFriends, tpGroups });
 
             _pnlFriends.Dock = DockStyle.Fill;
+
             _pnlFriends.AutoScroll = true;
+
             _pnlFriends.BackColor = Color.White;
             _pnlFriends.Resize += Pnl_UpdateRowsWidth;
 
@@ -312,17 +369,44 @@ namespace SecureChat.Client
 
             tpFriends.Controls.Add(_pnlFriends);
             tpGroups.Controls.Add(_pnlGroups);
+
             _tabContacts.Controls.Add(_contactSubTabs);
+
+            _contactSubTabs.Resize += (s, e) =>
+            {
+                if (_contactSubTabs.TabCount > 0 && _contactSubTabs.Width > 10)
+                {
+                    // Trừ hẳn 6-8 pixel để tạo "khoảng thở" an toàn cho thanh Tab
+                    int tabWidth = (_contactSubTabs.Width - 22) / _contactSubTabs.TabCount;
+
+                    if (_contactSubTabs.ItemSize.Width != tabWidth && tabWidth > 0)
+                    {
+                        _contactSubTabs.ItemSize = new Size(tabWidth, 30);
+                    }
+                }
+            };
+
         }
 
         private void BuildFriendList(List<ContactItem> friends, Panel pnl)
         {
+            // Khai báo biến y để xác định tọa độ dọc. Mỗi khi thêm một người bạn mới, y sẽ tăng lên để người tiếp theo không bị đè lên người trước.
             int y = 0;
-            int initialWidth = pnl.ClientSize.Width > 0 ? pnl.ClientSize.Width : 360;
+
+            // 1. Lấy chiều rộng hiện tại (nếu là 0 thì mới dùng 360 hoặc 440)
+            int initialWidth = pnl.ClientSize.Width > 0 ? pnl.ClientSize.Width : 440;
+
             foreach (var item in friends)
             {
                 var row = BuildFriendRow(item, initialWidth);
                 row.Location = new Point(0, y);
+
+                // 2. Ép chiều rộng của dòng bằng với Panel để tránh khoảng trắng
+                row.Width = pnl.ClientSize.Width > 0 ? pnl.ClientSize.Width : initialWidth;
+
+                // 3. Cho phép dòng tự co dãn khi người dùng kéo rộng Form
+                row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+
                 pnl.Controls.Add(row);
                 y += 62;
             }
@@ -343,12 +427,32 @@ namespace SecureChat.Client
 
         private Panel BuildFriendRow(ContactItem c, int initialWidth)
         {
-            var pnl = new Panel { Height = 62, Width = initialWidth, BackColor = Color.White, Cursor = Cursors.Hand };
+            // 1. Khởi tạo Panel chính
+            var pnl = new Panel
+            {
+                Height = 62,
+                Width = initialWidth,
+                BackColor = Color.White,
+                Cursor = Cursors.Hand
+            };
 
-            var avatar = new AvatarControl { Size = new Size(44, 44), Location = new Point(10, 9), ShowOnline = c.IsOnline };
+            // Bật Double Buffering để chống lag và bóng mờ (Ghosting)
+            pnl.GetType().GetProperty("DoubleBuffered",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
+                ?.SetValue(pnl, true, null);
+
+            // 2. Avatar
+            var avatar = new AvatarControl
+            {
+                Size = new Size(44, 44),
+                Location = new Point(10, 9),
+                ShowOnline = c.IsOnline
+            };
             avatar.SetName(c.DisplayName);
 
+            // 3. Tên và Username
             string displayText = string.IsNullOrWhiteSpace(c.Nickname) ? c.DisplayName : c.Nickname;
+
             var lblName = new Label
             {
                 Text = displayText,
@@ -357,9 +461,8 @@ namespace SecureChat.Client
                 AutoSize = false,
                 Height = 20,
                 Location = new Point(62, 12),
-                Width = initialWidth - 112,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.Transparent,
+                AutoEllipsis = true // Tự động thêm "..." nếu tên quá dài
             };
 
             var lblSub = new Label
@@ -368,13 +471,13 @@ namespace SecureChat.Client
                 Font = TG.FontRegular(8.5f),
                 ForeColor = TG.TextSecondary,
                 AutoSize = false,
-                Height = 18,
+                Height = 20,
                 Location = new Point(62, 32),
-                Width = initialWidth - 112,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.Transparent,
+                AutoEllipsis = true
             };
 
+            // 4. Nút tin nhắn
             var btnMsg = new TelegramButton
             {
                 Text = "💬",
@@ -382,34 +485,92 @@ namespace SecureChat.Client
                 Height = 28,
                 Font = new Font("Segoe UI Emoji", 11f),
                 Radius = TG.RadiusSmall,
-                NormalColor = Color.Transparent,
+
+                // NormalColor = Color.Transparent,
+                NormalColor = Color.White,
+
                 TextColor = TG.Blue,
-                Location = new Point(initialWidth - 46, 17),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                Cursor = Cursors.Hand
             };
+
             btnMsg.Click += (s, e) =>
             {
                 var mainForm = Application.OpenForms["MainForm"] as frmMainChat ?? new frmMainChat();
                 mainForm.Show();
+                mainForm.BringToFront();
             };
 
+            // 5. Thêm các control vào panel
             pnl.Controls.AddRange(new Control[] { avatar, lblName, lblSub, btnMsg });
-            pnl.Paint += (s, e) => e.Graphics.DrawLine(new Pen(TG.DividerLight), 62, 61, pnl.Width, 61);
+
+            // 6. Vẽ đường kẻ chia hàng (Divider)
+            pnl.Paint += (s, e) =>
+            {
+                using (var pen = new Pen(TG.DividerLight))
+                {
+                    // Vẽ đường kẻ từ vị trí 62 (thẳng hàng với text)
+                    e.Graphics.DrawLine(pen, 62, pnl.Height - 1, pnl.Width, pnl.Height - 1);
+                }
+            };
+
+            // 7. Xử lý co giãn (Responsive)
+            pnl.Resize += (s, e) =>
+            {
+                int rightMargin = 15;
+                btnMsg.Left = pnl.Width - btnMsg.Width - rightMargin;
+                btnMsg.Top = (pnl.Height - btnMsg.Height) / 2;
+
+                int textLeft = lblName.Left;
+                int textWidth = btnMsg.Left - textLeft - 10;
+
+                lblName.Width = Math.Max(0, textWidth);
+                lblSub.Width = Math.Max(0, textWidth);
+
+                pnl.Invalidate(); // Vẽ lại đường kẻ divider khi co giãn
+            };
+
+            // 8. Hiệu ứng Hover (Đổi màu đồng bộ)
+            // Hàm dùng chung để đổi màu
+            Action<Color> setHoverColor = (color) =>
+            {
+                pnl.BackColor = color;
+                // Buộc các label vẽ lại trên nền mới để tránh rác
+                lblName.Invalidate();
+                lblSub.Invalidate();
+            };
 
             foreach (Control ctrl in pnl.Controls)
             {
-                ctrl.MouseEnter += (s, e) => pnl.BackColor = TG.SidebarHover;
+                // Khi chuột đi vào bất kỳ control con nào, panel vẫn giữ màu hover
+                ctrl.MouseEnter += (s, e) => setHoverColor(TG.SidebarHover);
                 ctrl.MouseLeave += (s, e) =>
                 {
+                    // Chỉ trả về màu trắng nếu chuột thực sự rời khỏi vùng của Panel
                     if (!pnl.ClientRectangle.Contains(pnl.PointToClient(Control.MousePosition)))
-                        pnl.BackColor = Color.White;
+                        setHoverColor(Color.White);
                 };
             }
-            pnl.MouseEnter += (s, e) => pnl.BackColor = TG.SidebarHover;
-            pnl.MouseLeave += (s, e) => pnl.BackColor = Color.White;
+
+            // pnl.MouseEnter += (s, e) => setHoverColor(TG.SidebarHover);
+            // pnl.MouseLeave += (s, e) => setHoverColor(Color.White);
+
+            // Trong hàm BuildFriendRow, đoạn xử lý Hover:
+            pnl.MouseEnter += (s, e) =>
+            {
+                pnl.BackColor = TG.SidebarHover;
+                btnMsg.NormalColor = TG.SidebarHover; // Cập nhật màu nghỉ của nút cho khớp với nền mới
+                btnMsg.Invalidate();
+            };
+            pnl.MouseLeave += (s, e) =>
+            {
+                pnl.BackColor = Color.White;
+                btnMsg.NormalColor = Color.White; // Trả về trắng
+                btnMsg.Invalidate();
+            };
 
             return pnl;
         }
+
 
         private Panel BuildGroupRow(ContactItem c, int initialWidth)
         {
@@ -427,7 +588,6 @@ namespace SecureChat.Client
                 Height = 20,
                 Location = new Point(62, 12),
                 Width = initialWidth - 112,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.Transparent,
             };
 
@@ -440,7 +600,6 @@ namespace SecureChat.Client
                 Height = 18,
                 Location = new Point(62, 32),
                 Width = initialWidth - 112,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.Transparent,
             };
 
@@ -454,7 +613,6 @@ namespace SecureChat.Client
                 NormalColor = Color.Transparent,
                 TextColor = TG.Blue,
                 Location = new Point(initialWidth - 46, 17),
-                Anchor = AnchorStyles.Top | AnchorStyles.Right,
             };
             btnMsg.Click += (s, e) =>
             {
@@ -464,6 +622,21 @@ namespace SecureChat.Client
 
             pnl.Controls.AddRange(new Control[] { avatar, lblName, lblSub, btnMsg });
             pnl.Paint += (s, e) => e.Graphics.DrawLine(new Pen(TG.DividerLight), 62, 61, pnl.Width, 61);
+
+            EventHandler resizeHandler = (s, e) =>
+            {
+                const int rightMargin = 10;
+                int newBtnLeft = Math.Max(62 + 80, pnl.ClientSize.Width - btnMsg.Width - rightMargin);
+                btnMsg.Left = newBtnLeft;
+                int available = btnMsg.Left - lblName.Left - 12;
+                lblName.Width = Math.Max(80, available);
+                lblSub.Width = lblName.Width;
+
+                pnl.Refresh(); // 🔥 XÓA RÁC BÓNG MỜ
+            };
+
+            pnl.Resize += resizeHandler;
+            resizeHandler(pnl, EventArgs.Empty);
 
             foreach (Control ctrl in pnl.Controls)
             {
@@ -485,8 +658,13 @@ namespace SecureChat.Client
             _requestSubTabs.Dock = DockStyle.Fill;
             _requestSubTabs.Appearance = TabAppearance.FlatButtons;
             _requestSubTabs.DrawMode = TabDrawMode.OwnerDrawFixed;
-            _requestSubTabs.ItemSize = new Size(180, 30);
+            _requestSubTabs.Margin = new Padding(0);  // ✅ FIX: _contactSubTabs → _requestSubTabs
+            _requestSubTabs.Padding = new Point(0, 0);  // ✅ FIX: _contactSubTabs → _requestSubTabs
+            _requestSubTabs.ItemSize = new Size(0, 30);
             _requestSubTabs.SizeMode = TabSizeMode.Fixed;
+
+
+            _requestSubTabs.Multiline = false;  // ✅ FIX: _contactSubTabs → _requestSubTabs
             _requestSubTabs.Font = TG.FontRegular(9f);
             _requestSubTabs.DrawItem += (s, e) =>
             {
@@ -499,11 +677,22 @@ namespace SecureChat.Client
 
             int incomingCount = _requests.FindAll(r => r.IsIncoming).Count;
             int outgoingCount = _requests.FindAll(r => !r.IsIncoming).Count;
+            int blockedCount = _blockedUsers.Count;  // ✅ FIX: Thêm đếm số blocked users
 
             var tpIncoming = new TabPage($"Đã nhận ({incomingCount})") { BackColor = Color.White, UseVisualStyleBackColor = false };
             var tpSent = new TabPage($"Đã gửi ({outgoingCount})") { BackColor = Color.White, UseVisualStyleBackColor = false };
-            _requestSubTabs.TabPages.AddRange(new[] { tpIncoming, tpSent });
+            var tabBlocked = new TabPage($"Đã chặn ({blockedCount})") { BackColor = Color.White, UseVisualStyleBackColor = false };  // ✅ FIX: Thêm ({blockedCount})
 
+            _requestSubTabs.TabPages.AddRange(new[] { tpIncoming, tpSent, tabBlocked });
+
+            // Gán Panel cho tab "Đã chặn"
+            _pnlBlockedUsers.Dock = DockStyle.Fill;
+            _pnlBlockedUsers.AutoScroll = true;
+            _pnlBlockedUsers.Resize += Pnl_UpdateRowsWidth;  // ✅ FIX: Thêm Resize handler
+            tabBlocked.Controls.Add(_pnlBlockedUsers);
+            LoadBlockedUsers();  // ✅ FIX: Gọi hàm load dữ liệu
+
+            // ============ TAB "Đã nhận" ============
             var pnlIn = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
             pnlIn.Resize += Pnl_UpdateRowsWidth;
             int y = 0;
@@ -517,6 +706,7 @@ namespace SecureChat.Client
             }
             tpIncoming.Controls.Add(pnlIn);
 
+            // ============ TAB "Đã gửi" ============
             var pnlSent = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
             pnlSent.Resize += Pnl_UpdateRowsWidth;
             y = 0;
@@ -531,6 +721,20 @@ namespace SecureChat.Client
             tpSent.Controls.Add(pnlSent);
 
             _tabRequests.Controls.Add(_requestSubTabs);
+
+            // ============ Tab Size Calculation ============
+            _requestSubTabs.Resize += (s, e) =>
+            {
+                if (_requestSubTabs.TabCount > 0 && _requestSubTabs.Width > 10)
+                {
+                    // ✅ FIX: Tăng margin từ 22 lên 30 (vì có 3 tabs thay vì 2)
+                    int tabWidth = (_requestSubTabs.Width - 33) / _requestSubTabs.TabCount;
+                    if (_requestSubTabs.ItemSize.Width != tabWidth && tabWidth > 0)
+                    {
+                        _requestSubTabs.ItemSize = new Size(tabWidth, 30);
+                    }
+                }
+            };
         }
 
         private Panel BuildRequestRow(FriendRequestItem req, bool isIncoming, int initialWidth)
@@ -549,7 +753,6 @@ namespace SecureChat.Client
                 Height = 20,
                 Location = new Point(64, 12),
                 Width = initialWidth - 76,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.Transparent,
             };
 
@@ -559,38 +762,48 @@ namespace SecureChat.Client
                 Font = TG.FontRegular(8.5f),
                 ForeColor = TG.TextSecondary,
                 AutoSize = false,
-                Height = 16,
+                Height = 22,
                 Location = new Point(64, 32),
                 Width = initialWidth - 76,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.Transparent,
             };
 
             if (isIncoming)
             {
                 int btnWidth = (initialWidth - 88) / 2;
-                var btnAccept = new TelegramButton { Text = "Chấp nhận", Height = 28, Radius = TG.RadiusSmall, Font = TG.FontRegular(8.5f), Location = new Point(64, 54), Width = btnWidth, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-                var btnDecline = new TelegramButton { Text = "Từ chối", Height = 28, Radius = TG.RadiusSmall, Font = TG.FontRegular(8.5f), IsOutlined = true, Location = new Point(64 + btnWidth + 8, 54), Width = btnWidth, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+                var btnAccept = new TelegramButton { Text = "Chấp nhận", Height = 28, Radius = TG.RadiusSmall, Font = TG.FontRegular(8.5f), Location = new Point(64, 54), Width = btnWidth };
+                var btnDecline = new TelegramButton { Text = "Từ chối", Height = 28, Radius = TG.RadiusSmall, Font = TG.FontRegular(8.5f), IsOutlined = true, Location = new Point(64 + btnWidth + 8, 54), Width = btnWidth };
 
-                btnAccept.Click += (s, e) => { RemoveRequest(pnl, isAccepted: true); _incomingCount--; _tabs.Invalidate(); };
+                btnAccept.Click += (s, e) => { RemoveRequest(pnl, isAccepted: true); _incomingCount--; _tabs.Refresh(); };
                 btnDecline.Click += (s, e) => RemoveRequest(pnl, isAccepted: false);
 
                 pnl.Controls.AddRange(new Control[] { avatar, lblName, lblSub, btnAccept, btnDecline });
 
                 pnl.Resize += (s, e) =>
                 {
-                    int bw = (pnl.Width - 88) / 2;
+                    lblName.Width = pnl.ClientSize.Width - 76;
+                    lblSub.Width = pnl.ClientSize.Width - 76;
+                    int bw = (pnl.ClientSize.Width - 88) / 2;
                     btnAccept.Width = bw;
                     btnDecline.Left = 64 + bw + 8;
                     btnDecline.Width = bw;
+                    pnl.Refresh(); // 🔥 XÓA RÁC BÓNG MỜ
                 };
             }
             else
             {
-                var btnCancel = new TelegramButton { Text = "Hủy lời mời", Height = 28, Radius = TG.RadiusSmall, Font = TG.FontRegular(8.5f), IsOutlined = true, Location = new Point(64, 54), Width = initialWidth - 76, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+                var btnCancel = new TelegramButton { Text = "Hủy lời mời", Height = 28, Radius = TG.RadiusSmall, Font = TG.FontRegular(8.5f), IsOutlined = true, Location = new Point(64, 54), Width = initialWidth - 76 };
                 btnCancel.Click += (s, e) => RemoveRequest(pnl, false);
 
                 pnl.Controls.AddRange(new Control[] { avatar, lblName, lblSub, btnCancel });
+
+                pnl.Resize += (s, e) =>
+                {
+                    lblName.Width = pnl.ClientSize.Width - 76;
+                    lblSub.Width = pnl.ClientSize.Width - 76;
+                    btnCancel.Width = pnl.ClientSize.Width - 76;
+                    pnl.Refresh(); // 🔥 XÓA RÁC BÓNG MỜ
+                };
             }
 
             pnl.Paint += (s, e) => e.Graphics.DrawLine(new Pen(TG.DividerLight), 0, 85, pnl.Width, 85);
@@ -601,8 +814,26 @@ namespace SecureChat.Client
         {
             string msg = isAccepted ? "Đã chấp nhận lời mời kết bạn!" : "Đã từ chối lời mời.";
             MessageBox.Show(msg, "SecureChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            row.Visible = false;
+
+            Control container = row.Parent;
+            int rowHeight = row.Height;
+            int rowTop = row.Top;
+
+            // Xóa hàng hiện tại
+            container.Controls.Remove(row);
+            row.Dispose();
+
+            // Duyệt qua tất cả các hàng còn lại trong container
+            foreach (Control c in container.Controls)
+            {
+                // Nếu hàng nào nằm dưới hàng vừa xóa, kéo nó lên
+                if (c.Top > rowTop)
+                {
+                    c.Top -= rowHeight;
+                }
+            }
         }
+
 
         private void BuildSearchTab()
         {
@@ -633,6 +864,7 @@ namespace SecureChat.Client
 
         private void DoSearch(string query)
         {
+            // Xóa tất cả các thành phần (labels, rows, icons) đang hiển thị trong Panel kết quả để chuẩn bị hiển thị dữ liệu mới.
             _pnlSearchResults.Controls.Clear();
 
             if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
@@ -640,7 +872,12 @@ namespace SecureChat.Client
                 _pnlSearchResults.Controls.Add(_lblSearchHint);
                 return;
             }
+            // string.IsNullOrWhiteSpace(query): Kiểm tra nếu chuỗi tìm kiếm bị trống hoặc chỉ toàn dấu cách.
+            // query.Length < 2: Nếu người dùng nhập ít hơn 2 ký tự, hệ thống sẽ không tìm kiếm (để tránh xử lý quá nhiều khi kết quả quá rộng).
+            // _pnlSearchResults.Controls.Add(_lblSearchHint): Nếu thỏa mãn điều kiện trên, nó hiện lại nhãn hướng dẫn(ví dụ: "Hãy nhập tên để tìm kiếm") và kết thúc hàm bằng return.
 
+            //  Tạo ra một danh sách cứng (Hardcoded) các đối tượng ContactItem.
+            //  Trong thực tế, chỗ này thường là một câu lệnh gọi vào Database hoặc API
             var results = new List<ContactItem>
             {
                 new() { Type = ContactType.Friend, UserId = "usr-001", DisplayName = "Nguyễn Văn A", Username = "nguyenvana", Status = FriendStatus.Friend, IsOnline = true },
@@ -648,22 +885,21 @@ namespace SecureChat.Client
                 new() { Type = ContactType.Friend, UserId = "usr-013", DisplayName = "Nguyễn Minh K", Username = "nguyenquock", Status = FriendStatus.PendingOutgoing, IsOnline = false },
             };
 
-            int y = 0;
+            int y = 0; // Biến y dùng để tính toán vị trí theo chiều dọc (từ trên xuống dưới)
             var lblHdr = new Label
             {
-                Text = $"Kết quả cho \"{query}\"",
+                Text = $"Kết quả cho \"{query}\"",  // Hiển thị dòng chữ: Kết quả cho "abc"
                 Font = TG.FontRegular(8.5f),
                 ForeColor = TG.TextSecondary,
                 AutoSize = false,
                 Height = 24,
                 BackColor = Color.Transparent,
                 Padding = new Padding(12, 4, 0, 0),
-                Location = new Point(0, y),
-                Width = _pnlSearchResults.ClientSize.Width,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                Location = new Point(0, y), // Đặt ở tọa độ y = 0 (trên cùng)
+                Width = _pnlSearchResults.ClientSize.Width // Kéo dài hết chiều ngang panel
             };
-            _pnlSearchResults.Controls.Add(lblHdr);
-            y += 26;
+            _pnlSearchResults.Controls.Add(lblHdr); // Thêm tiêu đề vào panel
+            y += 26; // Tăng y lên 26 đơn vị để hàng tiếp theo không đè lên tiêu đề
 
             int initialWidth = _pnlSearchResults.ClientSize.Width > 0 ? _pnlSearchResults.ClientSize.Width : 360;
             foreach (var r in results)
@@ -691,7 +927,6 @@ namespace SecureChat.Client
                 Height = 20,
                 Location = new Point(58, 10),
                 Width = initialWidth - 158,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.Transparent,
             };
 
@@ -704,7 +939,6 @@ namespace SecureChat.Client
                 Height = 16,
                 Location = new Point(58, 30),
                 Width = initialWidth - 158,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = Color.Transparent,
             };
 
@@ -714,23 +948,42 @@ namespace SecureChat.Client
             switch (c.Status)
             {
                 case FriendStatus.Friend:
-                    statusCtrl = new Label { Text = "✓ Bạn bè", Font = TG.FontRegular(8f), ForeColor = Color.FromArgb(0x2E, 0x7D, 0x32), BackColor = Color.FromArgb(0xE8, 0xF5, 0xE9), AutoSize = false, Height = 24, Width = 80, Location = new Point(statusX, 16), Anchor = AnchorStyles.Top | AnchorStyles.Right, TextAlign = ContentAlignment.MiddleCenter, Padding = new Padding(6, 0, 6, 0), BorderStyle = BorderStyle.FixedSingle };
+                    statusCtrl = new Label { Text = "✓ Bạn bè", Font = TG.FontRegular(8f), ForeColor = Color.FromArgb(0x2E, 0x7D, 0x32), BackColor = Color.FromArgb(0xE8, 0xF5, 0xE9), AutoSize = false, Height = 24, Width = 80, Location = new Point(statusX, 16), TextAlign = ContentAlignment.MiddleCenter, Padding = new Padding(6, 0, 6, 0), BorderStyle = BorderStyle.FixedSingle };
                     break;
                 case FriendStatus.PendingOutgoing:
-                    statusCtrl = new Label { Text = "Đã gửi", Font = TG.FontRegular(8f), ForeColor = Color.FromArgb(0xE6, 0x5C, 0x00), BackColor = Color.FromArgb(0xFF, 0xF3, 0xE0), AutoSize = false, Height = 24, Width = 80, Location = new Point(statusX, 16), Anchor = AnchorStyles.Top | AnchorStyles.Right, TextAlign = ContentAlignment.MiddleCenter };
+                    statusCtrl = new Label { Text = "Đã gửi", Font = TG.FontRegular(8f), ForeColor = Color.FromArgb(0xE6, 0x5C, 0x00), BackColor = Color.FromArgb(0xFF, 0xF3, 0xE0), AutoSize = false, Height = 24, Width = 80, Location = new Point(statusX, 16), TextAlign = ContentAlignment.MiddleCenter };
                     break;
                 case FriendStatus.PendingIncoming:
-                    statusCtrl = new Label { Text = "Chờ duyệt", Font = TG.FontRegular(8f), ForeColor = Color.FromArgb(0x15, 0x65, 0xC0), BackColor = Color.FromArgb(0xE3, 0xF2, 0xFD), AutoSize = false, Height = 24, Width = 80, Location = new Point(statusX, 16), Anchor = AnchorStyles.Top | AnchorStyles.Right, TextAlign = ContentAlignment.MiddleCenter };
+                    statusCtrl = new Label { Text = "Chờ duyệt", Font = TG.FontRegular(8f), ForeColor = Color.FromArgb(0x15, 0x65, 0xC0), BackColor = Color.FromArgb(0xE3, 0xF2, 0xFD), AutoSize = false, Height = 24, Width = 80, Location = new Point(statusX, 16), TextAlign = ContentAlignment.MiddleCenter };
                     break;
                 case FriendStatus.Blocked:
-                    statusCtrl = new Label { Text = "Đã chặn", Font = TG.FontRegular(8f), ForeColor = Color.FromArgb(0x75, 0x75, 0x75), BackColor = Color.FromArgb(0xF5, 0xF5, 0xF5), AutoSize = false, Height = 24, Width = 80, Location = new Point(statusX, 16), Anchor = AnchorStyles.Top | AnchorStyles.Right, TextAlign = ContentAlignment.MiddleCenter };
+                    statusCtrl = new Label { Text = "Đã chặn", Font = TG.FontRegular(8f), ForeColor = Color.FromArgb(0x75, 0x75, 0x75), BackColor = Color.FromArgb(0xF5, 0xF5, 0xF5), AutoSize = false, Height = 24, Width = 80, Location = new Point(statusX, 16), TextAlign = ContentAlignment.MiddleCenter };
                     break;
                 default:
-                    var btn = new TelegramButton { Text = "+ Kết bạn", Height = 28, Width = 80, Radius = TG.RadiusSmall, Font = TG.FontRegular(8.5f), Location = new Point(statusX, 16), Anchor = AnchorStyles.Top | AnchorStyles.Right };
-                    btn.Click += (s, e) => { c.Status = FriendStatus.PendingOutgoing; pnl.Invalidate(); };
+                    var btn = new TelegramButton { Text = "+ Kết bạn", Height = 28, Width = 80, Radius = TG.RadiusSmall, Font = TG.FontRegular(8.5f), Location = new Point(statusX, 16) };
+                    btn.Click += (s, e) => { c.Status = FriendStatus.PendingOutgoing; pnl.Refresh(); };
                     statusCtrl = btn;
                     break;
             }
+
+            EventHandler resizeHandler = (s, e) =>
+            {
+                const int marginRight = 12;
+                int statusW = statusCtrl.Width;
+                int desiredLeft = pnl.ClientSize.Width - statusW - marginRight;
+                int minNameWidth = 80;
+                int minLeftForStatus = lblName.Left + minNameWidth + 12;
+                statusCtrl.Left = Math.Max(minLeftForStatus, desiredLeft);
+
+                int availableForName = statusCtrl.Left - lblName.Left - 12;
+                lblName.Width = Math.Max(minNameWidth, availableForName);
+                lblUser.Width = lblName.Width;
+
+                pnl.Refresh(); // 🔥 XÓA RÁC BÓNG MỜ
+            };
+
+            pnl.Resize += resizeHandler;
+            resizeHandler(pnl, EventArgs.Empty); // Gọi ngay 1 lần thay vì BeginInvoke
 
             pnl.Controls.AddRange(new Control[] { avatar, lblName, lblUser, statusCtrl });
             pnl.Paint += (s, e) => e.Graphics.DrawLine(new Pen(TG.DividerLight), 58, 59, pnl.Width, 59);
@@ -743,6 +996,102 @@ namespace SecureChat.Client
                     if (!pnl.ClientRectangle.Contains(pnl.PointToClient(Control.MousePosition)))
                         pnl.BackColor = Color.White;
                 };
+            }
+            pnl.MouseEnter += (s, e) => pnl.BackColor = TG.SidebarHover;
+            pnl.MouseLeave += (s, e) => pnl.BackColor = Color.White;
+
+            return pnl;
+        }
+
+        private void LoadBlockedUsers()
+        {
+            _pnlBlockedUsers.Controls.Clear();
+
+            if (_blockedUsers.Count == 0)
+            {
+                var lbl = new Label
+                {
+                    Text = "Chưa chặn ai",
+                    Font = TG.FontRegular(9f),
+                    ForeColor = TG.TextSecondary,
+                    AutoSize = false,
+                    Height = 40,
+                    BackColor = Color.Transparent,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Dock = DockStyle.Fill
+                };
+                _pnlBlockedUsers.Controls.Add(lbl);
+                return;
+            }
+
+            int y = 0;
+            int initialWidth = _pnlBlockedUsers.ClientSize.Width > 0 ? _pnlBlockedUsers.ClientSize.Width : 360;
+
+            foreach (var user in _blockedUsers)
+            {
+                var row = BuildBlockedUserRow(user, initialWidth);
+                row.Location = new Point(0, y);
+                _pnlBlockedUsers.Controls.Add(row);
+                y += 60;
+            }
+        }
+
+        private Panel BuildBlockedUserRow(ContactItem c, int initialWidth)
+        {
+            var pnl = new Panel { Height = 60, Width = initialWidth, BackColor = Color.White, Cursor = Cursors.Hand };
+
+            var avatar = new AvatarControl { Size = new Size(40, 40), Location = new Point(10, 10) };
+            avatar.SetName(c.DisplayName);
+
+            var lblName = new Label
+            {
+                Text = c.DisplayName,
+                Font = TG.FontSemiBold(9.5f),
+                ForeColor = TG.TextName,
+                AutoSize = false,
+                Height = 20,
+                Location = new Point(58, 10),
+                Width = initialWidth - 158,
+                BackColor = Color.Transparent,
+            };
+
+            var lblStatus = new Label
+            {
+                Text = "🚫 Đã chặn",
+                Font = TG.FontRegular(8f),
+                ForeColor = Color.FromArgb(0x75, 0x75, 0x75),
+                AutoSize = false,
+                Height = 24,
+                Width = 80,
+                Location = new Point(initialWidth - 92, 16),
+                TextAlign = ContentAlignment.MiddleCenter,
+                BackColor = Color.FromArgb(0xF5, 0xF5, 0xF5),
+            };
+
+            var btnUnblock = new TelegramButton
+            {
+                Text = "Bỏ chặn",
+                Height = 28,
+                Width = 80,
+                Radius = TG.RadiusSmall,
+                Font = TG.FontRegular(8.5f),
+                Location = new Point(initialWidth - 92, 16)
+            };
+            btnUnblock.Click += (s, e) =>
+            {
+                c.Status = FriendStatus.None;
+                _blockedUsers.Remove(c);
+                LoadBlockedUsers();
+            };
+
+            pnl.Controls.AddRange(new Control[] { avatar, lblName, btnUnblock });
+            pnl.Paint += (s, e) => e.Graphics.DrawLine(new Pen(TG.DividerLight), 58, 59, pnl.Width, 59);
+
+            // Hover effect
+            foreach (Control ctrl in pnl.Controls)
+            {
+                ctrl.MouseEnter += (s, e) => pnl.BackColor = TG.SidebarHover;
+                ctrl.MouseLeave += (s, e) => pnl.BackColor = Color.White;
             }
             pnl.MouseEnter += (s, e) => pnl.BackColor = TG.SidebarHover;
             pnl.MouseLeave += (s, e) => pnl.BackColor = Color.White;
