@@ -104,7 +104,47 @@ namespace SecureChat.Client.Components.Call
             _lblCamera.Visible = inCall;
 
             Enabled = !ended;
+            ReflowButtonsForCurrentState();
             Invalidate();
+        }
+
+        private void ReflowButtonsForCurrentState()
+        {
+            if (_buttonsLayout == null) return;
+
+            if (_state == CallUiState.Incoming)
+            {
+                // Center 2 buttons (Accept/Reject)
+                _buttonsLayout.SetColumn(_btnAccept, 1);
+                _buttonsLayout.SetColumn(_lblAccept, 1);
+                _buttonsLayout.SetColumn(_btnReject, 3);
+                _buttonsLayout.SetColumn(_lblReject, 3);
+                return;
+            }
+
+            if (_state == CallUiState.InCall)
+            {
+                // Center 3 buttons (Camera/End/Mic)
+                _buttonsLayout.SetColumn(_btnCamera, 1);
+                _buttonsLayout.SetColumn(_lblCamera, 1);
+                _buttonsLayout.SetColumn(_btnEnd, 2);
+                _buttonsLayout.SetColumn(_lblEnd, 2);
+                _buttonsLayout.SetColumn(_btnMic, 3);
+                _buttonsLayout.SetColumn(_lblMic, 3);
+                return;
+            }
+
+            // Default/fallback layout
+            _buttonsLayout.SetColumn(_btnAccept, 0);
+            _buttonsLayout.SetColumn(_lblAccept, 0);
+            _buttonsLayout.SetColumn(_btnReject, 1);
+            _buttonsLayout.SetColumn(_lblReject, 1);
+            _buttonsLayout.SetColumn(_btnEnd, 2);
+            _buttonsLayout.SetColumn(_lblEnd, 2);
+            _buttonsLayout.SetColumn(_btnMic, 3);
+            _buttonsLayout.SetColumn(_lblMic, 3);
+            _buttonsLayout.SetColumn(_btnCamera, 4);
+            _buttonsLayout.SetColumn(_lblCamera, 4);
         }
 
         public async Task ApplyRemoteSignalAsync(string signal, CancellationToken cancellationToken = default)
@@ -228,6 +268,7 @@ namespace SecureChat.Client.Components.Call
             _btnCamera.Click += async (_, __) => await ExecuteActionAsync(CallControlAction.ToggleCamera);
 
             LayoutButtonsBottomCenter();
+            _buttonsLayout.Resize += (_, __) => ReflowButtonsForCurrentState();
         }
 
         private void LayoutButtonsBottomCenter()
@@ -622,8 +663,15 @@ namespace SecureChat.Client.Components.Call
         private void RunOnUi(Action action)
         {
             if (IsDisposedState()) return;
-            if (InvokeRequired) BeginInvoke(action);
-            else action();
+            if (!IsHandleCreated) return;
+
+            try
+            {
+                if (InvokeRequired) BeginInvoke(action);
+                else action();
+            }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
         }
 
         private void RaiseCloseRequestedOnce()

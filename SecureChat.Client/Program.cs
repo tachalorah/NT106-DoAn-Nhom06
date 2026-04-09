@@ -4,6 +4,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using SecureChat.Client.Components.Call;
+using SecureChat.Client.Forms.Call;
+using SecureChat.Client.Forms.Settings;
+using SecureChat.Client.Models;
 
 namespace SecureChat.Client
 {
@@ -13,7 +16,106 @@ namespace SecureChat.Client
         private static void Main()
         {
             ApplicationConfiguration.Initialize();
-            Application.Run(new frmCallControlsTestHarness());
+            Application.Run(new frmUiTestLauncher());
+        }
+    }
+
+    internal sealed class frmUiTestLauncher : Form
+    {
+        public frmUiTestLauncher()
+        {
+            Text = "SecureChat - UI Test Launcher";
+            StartPosition = FormStartPosition.CenterScreen;
+            ClientSize = new Size(560, 330);
+            BackColor = Color.FromArgb(0x17, 0x21, 0x2E);
+            Font = new Font("Segoe UI", 10f, FontStyle.Regular, GraphicsUnit.Point);
+
+            var title = new Label
+            {
+                Text = "Run quick tests for Video Call features",
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI Semibold", 14f, FontStyle.Bold, GraphicsUnit.Point),
+                AutoSize = true,
+                Location = new Point(24, 24)
+            };
+
+            var sub = new Label
+            {
+                Text = "Choose one test screen below:",
+                ForeColor = Color.FromArgb(190, 210, 230),
+                Font = new Font("Segoe UI", 10f, FontStyle.Regular, GraphicsUnit.Point),
+                AutoSize = true,
+                Location = new Point(26, 60)
+            };
+
+            var panel = new FlowLayoutPanel
+            {
+                Location = new Point(24, 92),
+                Size = new Size(512, 206),
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                AutoScroll = true,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0)
+            };
+
+            panel.Controls.Add(BuildLauncherButton("Test Video Call Form (frmVideoCall)", (_, __) =>
+            {
+                using var f = new frmVideoCall("Hoàng Minh Hiếu");
+                f.ShowDialog(this);
+            }));
+
+            panel.Controls.Add(BuildLauncherButton("Test Call Controls (ucCallControls)", (_, __) =>
+            {
+                using var f = new frmCallControlsTestHarness();
+                f.ShowDialog(this);
+            }));
+
+            panel.Controls.Add(BuildLauncherButton("Test Speakers & Camera Settings", (_, __) =>
+            {
+                using var f = new frmSpeakersCamera();
+                f.ShowDialog(this);
+            }));
+
+            panel.Controls.Add(BuildLauncherButton("Test Full Settings Entry", (_, __) =>
+            {
+                var fakeProfile = new ProfileModel
+                {
+                    FullName = "Hoàng Minh Hiếu",
+                    PhoneNumber = "0903187536",
+                    Username = "minhhieu_dev1",
+                    Birthday = new DateTime(2003, 9, 15),
+                    StatusText = "online"
+                };
+
+                using var f = new frmSettings(fakeProfile);
+                f.ShowDialog(this);
+            }));
+
+            Controls.Add(title);
+            Controls.Add(sub);
+            Controls.Add(panel);
+        }
+
+        private static Button BuildLauncherButton(string text, EventHandler onClick)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                Width = 492,
+                Height = 42,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(0x2C, 0x3B, 0x4F),
+                ForeColor = Color.White,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Font = new Font("Segoe UI", 10f, FontStyle.Regular, GraphicsUnit.Point),
+                Cursor = Cursors.Hand,
+                Margin = new Padding(0, 0, 0, 10),
+                Padding = new Padding(14, 0, 0, 0)
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.Click += onClick;
+            return btn;
         }
     }
 
@@ -33,14 +135,24 @@ namespace SecureChat.Client
             BackColor = Color.FromArgb(0x17, 0x21, 0x2E);
             Font = new Font("Segoe UI", 10f, FontStyle.Regular, GraphicsUnit.Point);
 
-            var topBar = new FlowLayoutPanel
+            var commandHost = new Panel
             {
                 Dock = DockStyle.Top,
-                Height = 52,
+                Height = 64,
+                BackColor = Color.Transparent,
+                Padding = new Padding(0)
+            };
+
+            var topBar = new FlowLayoutPanel
+            {
+                Dock = DockStyle.None,
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 Padding = new Padding(10, 8, 10, 8),
                 FlowDirection = FlowDirection.LeftToRight,
                 WrapContents = false,
-                BackColor = Color.FromArgb(0x1E, 0x2A, 0x3A)
+                BackColor = Color.FromArgb(0x1E, 0x2A, 0x3A),
+                Margin = Padding.Empty
             };
 
             var btnIncoming = BuildActionButton("State: Incoming", (_, __) => _controls.SetUiState(CallUiState.Incoming));
@@ -54,6 +166,8 @@ namespace SecureChat.Client
             {
                 btnIncoming, btnInCall, btnEnded, btnRemoteAccepted, btnRemoteRejected, btnRemoteEnded
             });
+
+            commandHost.Controls.Add(topBar);
 
             _log = new ListBox
             {
@@ -95,7 +209,18 @@ namespace SecureChat.Client
 
             Controls.Add(centerHost);
             Controls.Add(_log);
-            Controls.Add(topBar);
+            Controls.Add(commandHost);
+
+            void LayoutCommandBar()
+            {
+                topBar.Location = new Point(
+                    Math.Max(0, (commandHost.ClientSize.Width - topBar.Width) / 2),
+                    Math.Max(0, (commandHost.ClientSize.Height - topBar.Height) / 2));
+            }
+
+            commandHost.Resize += (_, __) => LayoutCommandBar();
+            Resize += (_, __) => LayoutCommandBar();
+            Shown += (_, __) => LayoutCommandBar();
 
             AppendLog("Test harness ready.");
             AppendLog("Click Accept/Reject/End/Mute/Camera on ucCallControls below.");
