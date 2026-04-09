@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
-using SecureChat.Client.Forms.Settings;
-using SecureChat.Client.Models;
-    
+using SecureChat.Client.Forms.Call;
+
 namespace SecureChat.Client
 {
     internal static class Program
@@ -12,16 +11,8 @@ namespace SecureChat.Client
         {
             ApplicationConfiguration.Initialize();
 
-            var fakeProfile = new ProfileModel
-            {
-                FullName = "Hoàng Minh Hiếu",
-                PhoneNumber = "0903187536",
-                Username = "minhhieu_dev1",
-                Birthday = new DateTime(2003, 9, 15),
-                StatusText = "online"
-            };
-
-            Application.Run(new frmSettings(fakeProfile));
+            // Quick test entry for video call UI
+            Application.Run(new frmVideoCall("Hoàng Minh Hiếu"));
         }
     }
 }
