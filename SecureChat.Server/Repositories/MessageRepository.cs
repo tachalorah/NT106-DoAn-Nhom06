@@ -28,10 +28,7 @@ namespace SecureChat.Repositories
 				.Include(m => m.Mentions)
 				.FirstOrDefaultAsync(m => m.MessageID == messageID);
 
-		public async Task<List<Message>> GetByConversationAsync(
-			string conversationID,
-			int     limit  = 50,
-			DateTime? before = null)
+		public async Task<List<Message>> GetByConversationAsync(string conversationID, int limit = 50, DateTime? before = null)
 		{
 			var query = db.Messages
 				.Include(m => m.Sender)
@@ -43,16 +40,13 @@ namespace SecureChat.Repositories
 			if (before.HasValue)
 				query = query.Where(m => m.SentAt < before.Value);
 
-			return await query
-				.OrderByDescending(m => m.SentAt)
-				.Take(limit)
-				.ToListAsync();
+			return await query.OrderByDescending(m => m.SentAt).Take(limit).ToListAsync();
 		}
 
 		public async Task<Message> EditAsync(string messageID, string newContent, string? newIV = null)
 		{
 			var message = await db.Messages.FindAsync(messageID)
-				?? throw new KeyNotFoundException($"Message {messageID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy tin nhắn {messageID} not found.");
 
 			message.Content   = newContent;
 			message.ContentIV = newIV ?? message.ContentIV;
@@ -64,7 +58,7 @@ namespace SecureChat.Repositories
 		public async Task SoftDeleteAsync(string messageID)
 		{
 			var message = await db.Messages.FindAsync(messageID)
-				?? throw new KeyNotFoundException($"Message {messageID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy tin nhắn {messageID} not found.");
 
 			message.DeletedAt = DateTime.UtcNow;
 			await db.SaveChangesAsync();
@@ -73,7 +67,8 @@ namespace SecureChat.Repositories
 		public async Task DeleteAsync(string messageID)
 		{
 			var message = await db.Messages.FindAsync(messageID);
-			if (message is null) return;
+			if (message is null)
+				return;
 
 			db.Messages.Remove(message);
 			await db.SaveChangesAsync();
@@ -108,7 +103,8 @@ namespace SecureChat.Repositories
 		public async Task DeleteAttachmentAsync(string attachmentID)
 		{
 			var attachment = await db.MessageAttachments.FindAsync(attachmentID);
-			if (attachment is null) return;
+			if (attachment is null)
+				return;
 
 			db.MessageAttachments.Remove(attachment);
 			await db.SaveChangesAsync();
@@ -144,7 +140,8 @@ namespace SecureChat.Repositories
 		public async Task UnpinMessageAsync(string messageID, string conversationID)
 		{
 			var pin = await db.MessagePins.FindAsync(messageID, conversationID);
-			if (pin is null) return;
+			if (pin is null)
+				return;
 
 			db.MessagePins.Remove(pin);
 			await db.SaveChangesAsync();
@@ -185,7 +182,8 @@ namespace SecureChat.Repositories
 		public async Task RemoveReactionAsync(string reactionID)
 		{
 			var reaction = await db.MessageReactions.FindAsync(reactionID);
-			if (reaction is null) return;
+			if (reaction is null)
+				return;
 
 			db.MessageReactions.Remove(reaction);
 			await db.SaveChangesAsync();
@@ -216,8 +214,7 @@ namespace SecureChat.Repositories
 		public async Task<MessageStatus> MarkDeliveredAsync(string messageID, string memberID)
 		{
 			var status = await GetStatusAsync(messageID, memberID)
-				?? throw new KeyNotFoundException(
-					$"MessageStatus for message {messageID} / member {memberID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy trạng thái tin nhắn {messageID}/{memberID}.");
 
 			status.DeliveredAt ??= DateTime.UtcNow;
 			await db.SaveChangesAsync();
@@ -227,8 +224,7 @@ namespace SecureChat.Repositories
 		public async Task<MessageStatus> MarkReadAsync(string messageID, string memberID)
 		{
 			var status = await GetStatusAsync(messageID, memberID)
-				?? throw new KeyNotFoundException(
-					$"MessageStatus for message {messageID} / member {memberID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy trạng thái tin nhắn {messageID}/{memberID}.");
 
 			status.DeliveredAt ??= DateTime.UtcNow;
 			status.ReadAt      ??= DateTime.UtcNow;
@@ -240,14 +236,12 @@ namespace SecureChat.Repositories
 		{
 			var member = await db.ConversationMembers
 				.Include(m => m.LastReadMessage)
-				.FirstOrDefaultAsync(m => m.ConversationID == conversationID &&
-				                          m.MemberID       == memberID);
+				.FirstOrDefaultAsync(m => m.ConversationID == conversationID && m.MemberID == memberID);
 
-			if (member is null) return 0;
+			if (member is null)
+				return 0;
 
-			var query = db.Messages.Where(m => m.ConversationID == conversationID &&
-			                                   m.DeletedAt      == null &&
-			                                   m.SenderID       != memberID);
+			var query = db.Messages.Where(m => m.ConversationID == conversationID && m.DeletedAt == null && m.SenderID != memberID);
 
 			if (member.LastReadMessage is not null)
 				query = query.Where(m => m.SentAt > member.LastReadMessage.SentAt);
@@ -289,7 +283,8 @@ namespace SecureChat.Repositories
 		public async Task DeleteMentionAsync(string messageID, string memberID)
 		{
 			var mention = await db.MessageMentions.FindAsync(messageID, memberID);
-			if (mention is null) return;
+			if (mention is null)
+				return;
 
 			db.MessageMentions.Remove(mention);
 			await db.SaveChangesAsync();

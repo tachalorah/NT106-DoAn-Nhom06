@@ -5,9 +5,6 @@ namespace SecureChat.Repositories
 {
 	public class FriendRepository(AppDbContext db)
 	{
-		/*
-		 * FRIEND
-		 */
 		public async Task<Friend> CreateFriendshipAsync(Friend friend)
 		{
 			if (string.Compare(friend.UserAID, friend.UserBID, StringComparison.Ordinal) > 0)
@@ -48,7 +45,8 @@ namespace SecureChat.Repositories
 		public async Task DeleteFriendshipAsync(string friendshipID)
 		{
 			var friend = await db.Friends.FindAsync(friendshipID);
-			if (friend is null) return;
+			if (friend is null)
+				return;
 
 			db.Friends.Remove(friend);
 			await db.SaveChangesAsync();
@@ -93,7 +91,7 @@ namespace SecureChat.Repositories
 		public async Task<FriendRequest> UpdateFriendRequestStatusAsync(string requestID, FriendRequestStatus status)
 		{
 			var request = await db.FriendRequests.FindAsync(requestID)
-				?? throw new KeyNotFoundException($"FriendRequest {requestID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy lời mời {requestID}.");
 
 			request.Status      = status;
 			request.RespondedAt = DateTime.UtcNow;
@@ -104,7 +102,8 @@ namespace SecureChat.Repositories
 		public async Task DeleteFriendRequestAsync(string requestID)
 		{
 			var request = await db.FriendRequests.FindAsync(requestID);
-			if (request is null) return;
+			if (request is null)
+				return;
 
 			db.FriendRequests.Remove(request);
 			await db.SaveChangesAsync();
@@ -151,7 +150,8 @@ namespace SecureChat.Repositories
 		public async Task UnblockUserAsync(string blockID)
 		{
 			var block = await db.BlockedUsers.FindAsync(blockID);
-			if (block is null) return;
+			if (block is null)
+				return;
 
 			db.BlockedUsers.Remove(block);
 			await db.SaveChangesAsync();
