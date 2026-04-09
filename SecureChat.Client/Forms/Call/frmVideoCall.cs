@@ -217,7 +217,7 @@ namespace SecureChat.Client.Forms.Call
             pnlGradientBot = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 140,
+                Height = 154,
                 BackColor = Color.Transparent
             };
             pnlGradientBot.Paint += (s, e) => FillGradient(e.Graphics,
@@ -263,7 +263,7 @@ namespace SecureChat.Client.Forms.Call
 
             pnlGradientBot.Resize += (_, __) =>
             {
-                pnlActionDock.Location = new Point((pnlGradientBot.Width - pnlActionDock.Width) / 2, 22);
+                pnlActionDock.Location = new Point((pnlGradientBot.Width - pnlActionDock.Width) / 2, 18);
                 LayoutBottomBar(lblMic, lblCamera, lblHangUp);
             };
 
