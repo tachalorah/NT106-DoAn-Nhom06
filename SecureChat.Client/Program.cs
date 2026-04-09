@@ -2,7 +2,7 @@
 using System.Windows.Forms;
 using SecureChat.Client.Forms.Settings;
 using SecureChat.Client.Models;
-    
+
 namespace SecureChat.Client
 {
     internal static class Program
@@ -12,7 +12,7 @@ namespace SecureChat.Client
         {
             ApplicationConfiguration.Initialize();
 
-            var fakeProfile = new ProfileModel
+            /*var fakeProfile = new ProfileModel
             {
                 FullName = "Hoàng Minh Hiếu",
                 PhoneNumber = "0903187536",
@@ -22,6 +22,9 @@ namespace SecureChat.Client
             };
 
             Application.Run(new frmSettings(fakeProfile));
+            */
+            Application.Run(new frmContacts());
+
         }
     }
 }
