@@ -24,11 +24,11 @@ namespace SecureChat.Client.Forms.Chat
         private const string GLYPH_PEOPLE = "\uE716";
         private const string GLYPH_ADD = "\uE710";
 
-        private static readonly Color C_BG = Color.FromArgb(0x14, 0x1D, 0x27);
-        private static readonly Color C_TEXT = Color.FromArgb(0xF5, 0xF5, 0xF5);
-        private static readonly Color C_SUBTEXT = Color.FromArgb(0x89, 0x9A, 0xB4);
+        private static readonly Color C_BG = Color.White;
+        private static readonly Color C_TEXT = Color.FromArgb(0x1F, 0x2D, 0x3D);
+        private static readonly Color C_SUBTEXT = Color.FromArgb(0x7A, 0x8A, 0x99);
         private static readonly Color C_ACCENT = Color.FromArgb(0x2A, 0xAB, 0xEE);
-        private static readonly Color C_SEPARATOR = Color.FromArgb(0x22, 0x2F, 0x3C);
+        private static readonly Color C_SEPARATOR = Color.FromArgb(0xE8, 0xEC, 0xF1);
 
         private Label _lblName;
         private Label _lblCount;
@@ -348,7 +348,7 @@ namespace SecureChat.Client.Forms.Chat
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var rect = new Rectangle(0, 0, chk.Width - 1, chk.Height - 1);
             int r = rect.Height / 2;
-            using var track = new SolidBrush(chk.Checked ? C_ACCENT : Color.FromArgb(0x55, 0x65, 0x78));
+            using var track = new SolidBrush(chk.Checked ? C_ACCENT : Color.FromArgb(0xC7, 0xD2, 0xDE));
             using var thumb = new SolidBrush(Color.White);
             g.FillEllipse(track, rect.Left, rect.Top, rect.Height, rect.Height);
             g.FillEllipse(track, rect.Right - rect.Height, rect.Top, rect.Height, rect.Height);
