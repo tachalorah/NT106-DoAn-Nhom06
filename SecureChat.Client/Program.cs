@@ -10,7 +10,7 @@ namespace SecureChat.Client
         private static void Main()
         {
             ApplicationConfiguration.Initialize();
-            Application.Run(new frmGroupInfo());
+            Application.Run(new frmMainChat());
         }
     }
 }

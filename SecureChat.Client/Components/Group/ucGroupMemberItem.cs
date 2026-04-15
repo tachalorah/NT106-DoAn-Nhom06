@@ -9,10 +9,10 @@ namespace SecureChat.Client.Components.Group
         private const int RIGHT_PAD = 18;
         private const int TEXT_LEFT = LEFT_PAD + AVATAR_SIZE + 12;
         private const int ITEM_HEIGHT = 78;
-        private static readonly Color C_BG_HOVER = Color.FromArgb(18, 255, 255, 255);
-        private static readonly Color C_TEXT = Color.White;
-        private static readonly Color C_SUBTEXT = Color.FromArgb(0x89, 0x9A, 0xB4);
-        private static readonly Color C_ROLE = Color.FromArgb(0x2A, 0xAB, 0xEE);
+        private static readonly Color C_BG_HOVER = Color.FromArgb(0xF4, 0xF7, 0xFB);
+        private static readonly Color C_TEXT = Color.FromArgb(0x1F, 0x2D, 0x3D);
+        private static readonly Color C_SUBTEXT = Color.FromArgb(0x8A, 0x98, 0xA6);
+        private static readonly Color C_ROLE = Color.FromArgb(0x7D, 0x5F, 0xC9);
 
         private PictureBox _avatar = null!;
         private Label _lblInitial = null!;
@@ -191,6 +191,18 @@ namespace SecureChat.Client.Components.Group
         private static void DrawBadge(Graphics g, Rectangle bounds)
         {
             // No background drawing; role is plain text now
+        }
+
+        private static GraphicsPath RoundedRect(Rectangle r, int radius)
+        {
+            int d = radius * 2;
+            var p = new GraphicsPath();
+            p.AddArc(r.X, r.Y, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
         }
     }
 }
