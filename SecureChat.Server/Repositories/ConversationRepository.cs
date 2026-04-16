@@ -42,8 +42,8 @@ namespace SecureChat.Repositories
 		public async Task<Conversation?> GetDirectConversationAsync(string userAID, string userBID)
 			=> await db.Conversations
 				.Where(c => c.Type == ConversationType.Direct &&
-				            c.Members.Any(m => m.UserID == userAID && m.LeftAt == null) &&
-				            c.Members.Any(m => m.UserID == userBID && m.LeftAt == null))
+					c.Members.Any(m => m.UserID == userAID && m.LeftAt == null) &&
+					c.Members.Any(m => m.UserID == userBID && m.LeftAt == null))
 				.FirstOrDefaultAsync();
 
 		public async Task UpdateAsync(Conversation conversation)
@@ -55,7 +55,7 @@ namespace SecureChat.Repositories
 		public async Task SetLastMessageAsync(string conversationID, string messageID, DateTime activityAt)
 		{
 			var conv = await db.Conversations.FindAsync(conversationID)
-				?? throw new KeyNotFoundException($"Conversation {conversationID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy cuộc trò chuyện {conversationID}.");
 
 			conv.LastMessageID   = messageID;
 			conv.LastActivityAt  = activityAt;
@@ -65,7 +65,8 @@ namespace SecureChat.Repositories
 		public async Task DeleteAsync(string conversationID)
 		{
 			var conv = await db.Conversations.FindAsync(conversationID);
-			if (conv is null) return;
+			if (conv is null)
+				return;
 
 			db.Conversations.Remove(conv);
 			await db.SaveChangesAsync();
@@ -113,7 +114,7 @@ namespace SecureChat.Repositories
 		public async Task<ConversationMember> UpdateRoleAsync(string memberID, MemberRole role)
 		{
 			var member = await db.ConversationMembers.FindAsync(memberID)
-				?? throw new KeyNotFoundException($"ConversationMember {memberID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy thành viên {memberID}.");
 
 			member.Role = role;
 			await db.SaveChangesAsync();
@@ -123,7 +124,7 @@ namespace SecureChat.Repositories
 		public async Task<ConversationMember> UpdateNicknameAsync(string memberID, string? nickname)
 		{
 			var member = await db.ConversationMembers.FindAsync(memberID)
-				?? throw new KeyNotFoundException($"ConversationMember {memberID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy thành viên {memberID}.");
 
 			member.Nickname = nickname;
 			await db.SaveChangesAsync();
@@ -134,7 +135,7 @@ namespace SecureChat.Repositories
 			string memberID, NotificationMode mode)
 		{
 			var member = await db.ConversationMembers.FindAsync(memberID)
-				?? throw new KeyNotFoundException($"ConversationMember {memberID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy thành viên {memberID}.");
 
 			member.ShowNotifications = mode;
 			await db.SaveChangesAsync();
@@ -145,7 +146,7 @@ namespace SecureChat.Repositories
 			string memberID, string messageID)
 		{
 			var member = await db.ConversationMembers.FindAsync(memberID)
-				?? throw new KeyNotFoundException($"ConversationMember {memberID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy thành viên {memberID}.");
 
 			member.LastReadMsgID = messageID;
 			await db.SaveChangesAsync();
@@ -155,7 +156,7 @@ namespace SecureChat.Repositories
 		public async Task<ConversationMember> SetBanAsync(string memberID, DateTime? bannedUntil)
 		{
 			var member = await db.ConversationMembers.FindAsync(memberID)
-				?? throw new KeyNotFoundException($"ConversationMember {memberID} not found.");
+				?? throw new KeyNotFoundException($"Không tìm thấy thành viên {memberID}.");
 
 			member.BannedUntil = bannedUntil;
 			await db.SaveChangesAsync();
@@ -174,7 +175,8 @@ namespace SecureChat.Repositories
 		public async Task RemoveMemberAsync(string memberID)
 		{
 			var member = await db.ConversationMembers.FindAsync(memberID);
-			if (member is null) return;
+			if (member is null)
+				return;
 
 			db.ConversationMembers.Remove(member);
 			await db.SaveChangesAsync();

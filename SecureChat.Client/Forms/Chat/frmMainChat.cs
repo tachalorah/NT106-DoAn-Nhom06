@@ -1,36 +1,40 @@
 using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
-using System.IO;
-using System.Windows.Forms;
-using System.Threading.Tasks;
+using System.Collections.Generic;   // List<>, Dictionary<>
+using System.Drawing;               // Color, Point, Size, Image, Bitmap
+using System.Drawing.Drawing2D;     // SmoothingMode, LinearGradientBrush
+using System.Drawing.Imaging;       // PixelFormat, ColorMatrix, ImageAttributes
+using System.IO;                    // File, Path, MemoryStream, FileSystemWatcher
+using System.Threading.Tasks;       // Task.Delay (dùng cho wallpaper reload)
+using System.Windows.Forms;         // Form, Panel, Button, Label, ...
 
 namespace SecureChat.Client
 {
-    public partial class frmMainChat : Form
+    public class frmMainChat : Form
     {
-        // ── Layout panels ──────────────────────────
-        private Panel _pnlSidebar = null!;       // 280px bên trái
-        private Panel _pnlChat;          // phần còn lại
-        private Panel _pnlSettingsMenu;  // slide ra từ bên PHẢI đè lên chat area
-        private bool _settingsVisible = false;
-        private System.Windows.Forms.Timer _slideTimer;
-        private int _settingsTargetX;  // vị trí X đích khi animate
+        // ── Các panel layout ──────────────────────────
+        private Panel _pnlSidebar = null!; // Panel trái rộng 280px chứa danh sách hội thoại
+        private Panel _pnlChat; // Panel phải chiếm phần còn lại, hiển thị tin nhắn
+        private Panel _pnlSettingsMenu;  // Menu trượt từ trái ra, đè lên chat area
+        private bool _settingsVisible = false; // Trạng thái menu đang hiện hay ẩn, mặc định là ẩn
+        private System.Windows.Forms.Timer _slideTimer; // Timer tạo hiệu ứng trượt (animation)
+        private int _settingsTargetX;  // Tọa độ X đích khi animate menu
 
         // ── Sidebar controls ───────────────────────
-        private Button _btnHamburger;
-        private TelegramTextBox _tbSearch;
-        private Panel _pnlConvList;
+        private Button _btnHamburger; // nút ☰ mở menu
+        private TelegramTextBox _tbSearch; // ô tìm kiếm
+        private Panel _pnlConvList; // danh sách cuộc trò chuyện
 
         // ── Chat area controls ─────────────────────
-        private Panel _pnlChatHeader;
-        private Panel _pnlMessages;
-        private Panel _pnlInputBar;
-        private TelegramTextBox _tbMessage;
-        private Label _lblChatName, _lblChatStatus;
-        private AvatarControl _chatAvatar;
+
+        private Panel _pnlChatHeader; // thanh header trên cùng khu chat
+
+        private Panel _pnlMessages; // vùng hiển thị bong bóng tin nhắn
+
+        private Panel _pnlInputBar; // thanh nhập tin nhắn bên dưới
+        private TelegramTextBox _tbMessage; // TextBox gõ tin nhắn
+        private Label _lblChatName, _lblChatStatus; // tên và trạng thái người nhận
+        private AvatarControl _chatAvatar; //  avatar tròn người nhận
+
         private ContextMenuStrip _chatMoreMenu;
         private ToolStripMenuItem _mnuMuteNotifications;
         private ToolStripMenuItem _mnuUnmuteNow;
@@ -42,16 +46,17 @@ namespace SecureChat.Client
         private bool _notificationsSoundEnabled = true;
         private DateTime? _muteUntilUtc;
 
+
         // ── Settings menu controls ─────────────────
         private Panel _pnlSettingsHeader;
 
         // ── Mock data ──────────────────────────────
-        private string _activeConvId = "1";
+        private string _activeConvId = "1"; // // ID cuộc trò chuyện đang mở, mặc định là mở cuộc trò chuyện này
 
         private readonly List<(string Id, string Name, string Preview, string Time, int Unread, bool IsGroup)> _convs = new()
         {
             ("1", "Telegram",    "Quack Cyber added Sim 18a3",     "10:10 PM", 0,  false),
-            ("2", "dk test",     "Quack Cyber: Hello hello hello!", "12:51 PM", 0,  false),
+            ("2", "dk test",     "Quack Cyber: Hello hello hello!", "12:51 PM", 100,  false),
             ("3", "Tuấn Thành",  "Sure",                           "10 Mar",   0,  false),
         };
 
@@ -64,7 +69,7 @@ namespace SecureChat.Client
             ("Search it",                                                                                true,  "10:16 PM"),
         };
 
-        private readonly Dictionary<string, bool> _settingsToggles = new();
+        private readonly Dictionary<string, bool> _settingsToggles = new(); // công tắc Night mode
 
 
         public frmMainChat()
@@ -81,6 +86,9 @@ namespace SecureChat.Client
             Size = new Size(1000, 660);
             MinimumSize = new Size(760, 500);
             StartPosition = FormStartPosition.CenterScreen;
+
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+
             BackColor = Color.White;
             Font = TG.FontRegular(9.5f);
 
@@ -96,23 +104,28 @@ namespace SecureChat.Client
             Resize += (s, e) => AdjustLayout();
             AdjustLayout();
 
-            LoadConversation("1");
+            LoadConversation("1"); // tải cuộc trò chuyện đầu tiên
             // inside InitUI(), after LoadConversation("1");
-            SetupWallpaperWatcher();
+            SetupWallpaperWatcher(); // theo dõi thay đổi ảnh nền
         }
 
         private void AdjustLayout()
         {
-            int sw = 280;                        // sidebar width
-            int smw = 260;                       // settings menu width
+            // Khai báo các hằng số kích thước
+            int sw = 280;                        // Sidebar Width
+            int smw = 260;                       // Settings Menu Width
+
+            // Thiết lập vị trí và kích thước cho Sidebar và Khung Chat
+            // .SetBounds(x, y, rộng, cao)
+            // ClientSize.Height: Chiều cao kéo dài bằng toàn bộ chiều cao vùng làm việc của cửa sổ.
             _pnlSidebar.SetBounds(0, 0, sw, ClientSize.Height);
             _pnlChat.SetBounds(sw, 0, ClientSize.Width - sw, ClientSize.Height);
 
+            // Xử lý hiệu ứng trượt (Slide) của Menu Cài đặt
             // Settings menu: slide overlay từ bên TRÁI
-            // visibleX = 0 (menu dán vào mép trái của form)
-            // hiddenX  = -smw (ẩn ngoài bên trái)
-            int visibleX = 0;
-            int hiddenX = -smw;
+            int visibleX = 0; // Khai báo tọa độ X khi menu cài đặt hiển thị là 0 (nằm sát mép trái màn hình).
+            int hiddenX = -smw; // Khai báo tọa độ X khi menu cài đặt ẩn đi là -260 (đẩy toàn bộ menu ra ngoài phạm vi nhìn thấy về phía bên trái).
+            // Kiểm tra nếu biến trạng thái _settingsVisible đang là false (người dùng không mở menu cài đặt).
             if (!_settingsVisible)
                 _pnlSettingsMenu.SetBounds(hiddenX, 0, smw, ClientSize.Height);
             else
@@ -120,7 +133,7 @@ namespace SecureChat.Client
         }
 
         // ════════════════════════════════════════════
-        //  SIDEBAR
+        //  SIDEBAR: Một thanh tiêu đề trên cùng (Header) chứa nút menu và nút chỉnh sửa, một ô tìm kiếm (Search), và danh sách các cuộc hội thoại (Conversation list).
         // ════════════════════════════════════════════
         private void BuildSidebar()
         {
@@ -128,20 +141,22 @@ namespace SecureChat.Client
 
             // ── Header xanh ──────────────────────────
             var pnlHeader = new Panel { Height = 52, BackColor = TG.TitleBarBg, Dock = DockStyle.Top };
+            // Gắn chặt panel này vào mép trên cùng của sidebar.
 
             _btnHamburger = new Button
             {
                 Text = "☰",
-                FlatStyle = FlatStyle.Flat,
+                FlatStyle = FlatStyle.Flat, // Đặt kiểu hiển thị phẳng, không có hiệu ứng nổi 3D của Windows cổ điển.
                 Font = TG.FontRegular(14f),
                 ForeColor = Color.White,
                 Size = new Size(48, 52),
-                Location = new Point(0, 0),
-                BackColor = Color.Transparent,
+                Location = new Point(0, 0), // Đặt nút ở góc trên cùng bên trái của header.
+                BackColor = Color.Transparent, // Nền trong suốt để lộ màu xanh của header.
                 Cursor = Cursors.Hand,
-                TextAlign = ContentAlignment.MiddleCenter,
+                TextAlign = ContentAlignment.MiddleCenter, // Căn giữa biểu tượng "☰".
             };
-            _btnHamburger.FlatAppearance.BorderSize = 0;
+
+            _btnHamburger.FlatAppearance.BorderSize = 0; // Loại bỏ đường viền bao quanh nút khi vẽ giao diện phẳng.
             _btnHamburger.Click += (s, e) => ToggleSettingsMenu();
 
             var lblTitle = new Label
@@ -151,7 +166,7 @@ namespace SecureChat.Client
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
                 AutoSize = false,
-                Location = new Point(50, 0),
+                Location = new Point(50, 0), // Đặt cách mép trái 50px (để không đè lên nút Hamburger rộng 48px).
                 Height = 52,
                 TextAlign = ContentAlignment.MiddleLeft,
             };
@@ -169,7 +184,9 @@ namespace SecureChat.Client
             };
             btnEdit.FlatAppearance.BorderSize = 0;
 
-            pnlHeader.Controls.AddRange(new Control[] { _btnHamburger, lblTitle, btnEdit });
+            // pnlHeader.Controls.AddRange(new Control[] { _btnHamburger, lblTitle, btnEdit });
+            pnlHeader.Controls.AddRange(new Control[] { _btnHamburger, lblTitle });
+
             pnlHeader.Resize += (s, e) =>
             {
                 lblTitle.Width = pnlHeader.Width - 96;
@@ -193,13 +210,17 @@ namespace SecureChat.Client
 
         private void BuildConvList()
         {
+            // Xóa bỏ toàn bộ các đối tượng đó để chuẩn bị vẽ lại từ đầu(tránh việc danh sách mới bị đè lên danh sách cũ).
             _pnlConvList.Controls.Clear();
+
+            // Nó dùng để xác định vị trí đặt hàng tiếp theo, giúp các hàng không bị đè lên nhau.
             int y = 0;
+
+            // Duyệt qua từng cuộc trò chuyện trong danh sách dữ liệu.
             foreach (var c in _convs)
             {
                 var row = BuildConvRow(c.Id, c.Name, c.Preview, c.Time, c.Unread, c.IsGroup);
                 row.Location = new Point(0, y);
-                // Let the row resize automatically with the parent
                 row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                 row.Width = _pnlConvList.ClientSize.Width;
                 _pnlConvList.Controls.Add(row);
@@ -209,14 +230,17 @@ namespace SecureChat.Client
 
         private Panel BuildConvRow(string id, string name, string preview, string time, int unread, bool isGroup)
         {
+            // Tạo một khung chứa có chiều cao cố định là 68px, màu nền trắng và đổi con trỏ chuột thành hình bàn tay (Cursors.Hand) khi rê vào.
+            // Thuộc tính Tag được gán bằng id của cuộc trò chuyện để dễ dàng nhận diện.
             var pnl = new Panel { Height = 68, BackColor = Color.White, Tag = id, Cursor = Cursors.Hand };
 
+            // Kiểm tra xem dòng chat này có đang được người dùng chọn (active) hay không bằng cách so sánh Tag với biến toàn cục _activeConvId.
             bool isActive() => (string)pnl.Tag == _activeConvId;
 
             // Avatar
             var avatar = new AvatarControl { Size = new Size(48, 48), Location = new Point(10, 10) };
             avatar.SetName(name);
-            avatar.ShowOnline = false;
+            avatar.ShowOnline = false; // nếu có thì có chấm xanh nhỏ ở dưới phải avatar
 
             // Name + preview
             var lblName = new Label
@@ -229,6 +253,8 @@ namespace SecureChat.Client
                 Location = new Point(66, 10),
                 BackColor = Color.Transparent,
             };
+            // Hiển thị nội dung tin nhắn mới nhất.
+            // Thuộc tính AutoEllipsis = true rất quan trọng: nó sẽ tự động thêm dấu ba chấm ... nếu tin nhắn quá dài vượt quá chiều rộng của nhãn.
             var lblPreview = new Label
             {
                 Text = preview,
@@ -241,7 +267,8 @@ namespace SecureChat.Client
                 AutoEllipsis = true
             };
 
-            // Time (top-right)
+            // Hiển thị thời gian nhắn tin ở góc trên bên phải.
+            // Sử dụng Anchor để giữ khoảng cách cố định với mép phải khi co dãn giao diện.
             var lblTime = new Label
             {
                 Text = time,
@@ -251,50 +278,69 @@ namespace SecureChat.Client
                 BackColor = Color.Transparent,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
-            // Unread badge (rounded painted)
+            // Nhãn hiển thị số lượng tin nhắn chưa đọc.
+            // Nó chỉ hiện lên khi unread > 0.
             var lblUnread = new Label
             {
-                Size = new Size(22, 22),
+                // Nếu > 99 thì cho rộng ra một chút (ví dụ 28px) để chứa vừa dấu "+"
+                Size = unread > 99 ? new Size(30, 25) : new Size(22, 22),
                 AutoSize = false,
                 BackColor = Color.Transparent,
+
+
                 ForeColor = Color.White,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Font = TG.FontSemiBold(8f),
                 Visible = unread > 0,
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
+            // Đoạn code này tự tay vẽ (custom draw) một hình tròn màu xanh (TG.Blue) đè lên nhãn và viết số lượng tin nhắn vào giữa.
+            // Nếu số lượng lớn hơn 99, nó tự động đổi thành "99+".
             lblUnread.Paint += (s, e) =>
             {
                 if (!lblUnread.Visible) return;
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 using var brush = new SolidBrush(TG.Blue);
+
+                // Vẽ hình nền tròn hoặc bầu dục nếu số dài
                 e.Graphics.FillEllipse(brush, 0, 0, lblUnread.Width - 1, lblUnread.Height - 1);
+
+                // LOGIC QUAN TRỌNG: Kiểm tra lại biến unread ở đây
                 string txt = unread > 99 ? "99+" : unread.ToString();
+
                 using var fore = new SolidBrush(Color.White);
                 var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 e.Graphics.DrawString(txt, lblUnread.Font, fore, lblUnread.ClientRectangle, sf);
             };
 
+
             // Add controls
             pnl.Controls.AddRange(new Control[] { avatar, lblName, lblPreview, lblTime, lblUnread });
 
             // Click behavior
+            // Định nghĩa hành động khi người dùng bấm vào dòng chat: Cập nhật ID đang kích hoạt, vẽ lại danh sách và tải nội dung tin nhắn của cuộc trò chuyện đó.
             Action doClick = () => { _activeConvId = id; BuildConvList(); LoadConversation(id); };
             pnl.Click += (s, e) => doClick();
             avatar.Click += (s, e) => doClick();
 
-            // Hover + selection visuals
+            // Khi rê chuột vào/ra khỏi tấm nền, nếu dòng chat này không ở trạng thái được chọn (!isActive()), nền sẽ đổi sang màu hover (TG.SidebarHover) và ngược lại.
             pnl.MouseEnter += (s, e) => { if (!isActive()) pnl.BackColor = TG.SidebarHover; };
             pnl.MouseLeave += (s, e) => { if (!isActive()) pnl.BackColor = Color.White; };
 
             // Resize child layout when row width changes
             pnl.Resize += (s, e) =>
             {
-                // Clamp to prevent negative widths when parent is narrow
-                lblName.Width = Math.Max(0, pnl.Width - 66 - 70);
-                lblPreview.Width = Math.Max(0, pnl.Width - 66 - 12);
+                lblName.Width = Math.Max(0, pnl.Width - 66 - 70); // 70px là trừ hao cho phần hiển thị thời gian
+
+                // NẾU CÓ TIN NHẮN CHƯA ĐỌC: Trừ đi độ rộng của Badge (khoảng 35-40px tính cả lề)
+                // NẾU KHÔNG CÓ: Chỉ trừ lề phải 12px
+                int previewRightMargin = (unread > 0) ? 40 : 12;
+                lblPreview.Width = Math.Max(0, pnl.Width - 66 - previewRightMargin);
+
                 lblTime.Location = new Point(pnl.Width - lblTime.Width - 12, 12);
                 lblUnread.Location = new Point(pnl.Width - lblUnread.Width - 12, 34);
+
+
                 // Update colors for active state
                 if (isActive())
                 {
@@ -310,9 +356,13 @@ namespace SecureChat.Client
                     lblPreview.ForeColor = TG.TextSecondary;
                     lblTime.ForeColor = TG.TextTime;
                 }
+
+                lblUnread.BringToFront(); // đảm bảo 99+ không bị đè
             };
 
-            // Propagate click/hover for child controls
+            // Truyền sự kiện (Event Propagation)/hover for child controls
+            // Trong WinForms, khi bạn click vào một Label nằm bên trong Panel, sự kiện Click của Panel sẽ không tự kích hoạt.
+            // Vòng lặp này duyệt qua tất cả các control con để gán đè sự kiện Click và Hover. Mục đích là giúp người dùng click hay rê chuột vào bất cứ điểm nào trên dòng chat(dù là vào chữ hay vào khoảng trống) thì cả dòng chat vẫn phản hồi đồng bộ.
             foreach (Control c in pnl.Controls)
             {
                 if (c == avatar) continue; // avatar wired already
@@ -321,8 +371,8 @@ namespace SecureChat.Client
                 c.MouseLeave += (s, e) => { if (!isActive()) pnl.BackColor = Color.White; };
             }
 
-            // initialize positions (so anchors work correctly right away)
             pnl.Width = _pnlConvList?.ClientSize.Width ?? pnl.Width;
+            // Ép Panel tính toán lại vị trí các control dựa trên các logic resize vừa viết ở trên trước khi trả về kết quả.
             pnl.PerformLayout();
 
             return pnl;
@@ -331,12 +381,20 @@ namespace SecureChat.Client
         // ════════════════════════════════════════════
         //  CHAT AREA
         // ════════════════════════════════════════════
+
+        // Mới thêm
+        private Button _btnToggleSidebar;
+        private Panel _pnlRightSidebar;
+        private bool _isSidebarOpen = false; // Biến phụ để theo dõi trạng thái
+
         private void BuildChatArea()
         {
+            // chứa toàn bộ Header, danh sách tin nhắn và thanh nhập liệu.
             _pnlChat = new Panel { BackColor = Color.White };
 
             // ── Chat Header ───────────────────────────
             _pnlChatHeader = new Panel { Height = 52, BackColor = Color.White, Dock = DockStyle.Top };
+            // vẽ một đường kẻ ngang màu xám/nhạt (TG.Divider) ở dưới cùng để ngăn cách header với vùng tin nhắn.
             _pnlChatHeader.Paint += (s, e) =>
                 e.Graphics.DrawLine(new Pen(TG.Divider), 0, 51, _pnlChatHeader.Width, 51);
 
@@ -355,7 +413,7 @@ namespace SecureChat.Client
                 Font = TG.FontRegular(8.5f),
                 ForeColor = TG.TextSecondary,
                 AutoSize = false,
-                Height = 16,
+                Height = 20,
                 Location = new Point(56, 30),
                 BackColor = Color.Transparent,
             };
@@ -370,27 +428,63 @@ namespace SecureChat.Client
                 _chatMoreMenu.Show(btnMore, new Point(btnMore.Width - _chatMoreMenu.Width, btnMore.Height + 2));
             };
 
-            _pnlChatHeader.Controls.AddRange(new Control[] { _chatAvatar, _lblChatName, _lblChatStatus, btnSearch, btnVideo, btnMore });
-            _pnlChatHeader.Resize += (s, e) =>
+            // Khởi tạo nút và gán vào biến đã khai báo ở trên
+            _btnToggleSidebar = MakeChatHeaderBtn("⏪");
+
+            // _pnlChatHeader.Controls.AddRange(new Control[] { _chatAvatar, _lblChatName, _lblChatStatus, btnSearch, btnVideo, btnMore });
+            // Thêm vào AddRange (nhớ thêm _btnToggleSidebar)
+            _pnlChatHeader.Controls.AddRange(new Control[] { _chatAvatar, _lblChatName, _lblChatStatus, btnSearch, btnVideo, _btnToggleSidebar, btnMore });
+
+            _btnToggleSidebar.Click += (s, e) =>
             {
+                /*
+                if (_pnlRightSidebar.Visible)
+                {
+                    _pnlRightSidebar.Visible = false;
+                    _btnToggleSidebar.Text = "⏪"; // Đóng rồi thì hiện mũi tên hướng trái để mở lại
+                }
+                else
+                {
+                    _pnlRightSidebar.Visible = true;
+                    _btnToggleSidebar.Text = "⏩"; // Mở rồi thì hiện mũi tên hướng phải để đóng
+                }
+                */
+            };
+
+            /* _pnlChatHeader.Resize += (s, e) =>
+            {
+
                 _lblChatName.Width = _pnlChatHeader.Width - 56 - 130;
                 _lblChatStatus.Width = _pnlChatHeader.Width - 56 - 130;
                 btnMore.Location = new Point(_pnlChatHeader.Width - 42, 8);
                 btnVideo.Location = new Point(_pnlChatHeader.Width - 84, 8);
                 btnSearch.Location = new Point(_pnlChatHeader.Width - 126, 8);
+            };*/
+            _pnlChatHeader.Resize += (s, e) =>
+            {
+                // Khoảng cách dành cho 4 nút (42px mỗi nút) = 168px
+                _lblChatName.Width = _pnlChatHeader.Width - 56 - 170;
+                _lblChatStatus.Width = _pnlChatHeader.Width - 56 - 170;
+
+                int w = _pnlChatHeader.Width;
+                btnMore.Location = new Point(w - 42, 8);             // Cách mép 42
+                _btnToggleSidebar.Location = new Point(w - 84, 8);   // Cách mép 84 (Nút của bạn ở đây)
+                btnVideo.Location = new Point(w - 126, 8);           // Cách mép 126
+                btnSearch.Location = new Point(w - 168, 8);          // Cách mép 168
             };
 
-            // ── Messages area ─────────────────────────
+
+            // ── Messages area  - Vùng hiển thị tin nhắn ─────────────────────────
             _pnlMessages = new Panel
             {
-                Dock = DockStyle.Fill,
+                Dock = DockStyle.Fill, // chiếm trọn phần diện tích còn lại
                 AutoScroll = true,
                 Padding = new Padding(12, 8, 12, 8),
             };
 
             typeof(Panel).InvokeMember("DoubleBuffered",
-    System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
-    null, _pnlMessages, new object[] { true });
+            System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            null, _pnlMessages, new object[] { true });
             _pnlMessages.Paint += PaintChatBackground;
             // Click vào vùng chat → đóng settings menu
             _pnlMessages.Click += (s, e) => { if (_settingsVisible) HideSettingsMenu(); };
@@ -944,7 +1038,7 @@ namespace SecureChat.Client
             btnClose.FlatAppearance.BorderSize = 0;
             btnClose.Click += (s, e) => HideSettingsMenu();
 
-            var userAvatar = new AvatarControl { Size = new Size(56, 56), Location = new Point(14, 42) };
+            var userAvatar = new AvatarControl { Size = new Size(56, 56), Location = new Point(14, 52) };
             userAvatar.SetName("Quack Cyber");
 
             var lblUserName = new Label
@@ -1278,13 +1372,25 @@ namespace SecureChat.Client
                 sz = g.MeasureString(text, TG.FontRegular(9.5f), maxW - pad * 2);
             }
 
+            /*
             int bw = Math.Min(maxW, Math.Max((int)sz.Width + pad * 2 + 30, 90));
             int bh = (int)sz.Height + pad * 2;
             pnl.Height = bh + 12;
+            */
+
+            // --- PHẦN TÍNH TOÁN LẠI ---
+            int statusHeight = 16; // Khoảng trống cho cụm thời gian và tick
+            int bw = Math.Min(maxW, Math.Max((int)sz.Width + pad * 2 + 10, 100)); // Tăng min width một chút
+            int bh = (int)sz.Height + pad * 2 + statusHeight; // CỘNG THÊM statusHeight vào chiều cao bubble
+            pnl.Height = bh + 16; // Tăng chiều cao Panel bao ngoài
 
             pnl.Paint += (s, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+                // --- THÊM DÒNG NÀY ĐỂ KHỬ RĂNG CƯA CHỮ ---
+                e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
                 int x = isOut ? pnl.ClientSize.Width - bw - 10 : 10;
                 int y = 4;
                 Color bg = isOut ? TG.MsgOutBg : TG.MsgInBg;
@@ -1312,6 +1418,7 @@ namespace SecureChat.Client
                     e.Graphics.FillPolygon(new SolidBrush(bg), tail);
                 }
 
+                /*
                 // Text
                 e.Graphics.DrawString(text, TG.FontRegular(9.5f), new SolidBrush(TG.TextPrimary),
                     new RectangleF(x + pad, y + pad, bw - pad * 2, sz.Height + 4));
@@ -1325,6 +1432,32 @@ namespace SecureChat.Client
                 // Ticks for outgoing
                 if (isOut)
                     e.Graphics.DrawString("✓✓", TG.FontRegular(7.5f), new SolidBrush(TG.Blue), tx - 18, ty);
+                */
+
+
+                // Text: Khống chế chiều cao vẽ chữ để không đè lên status
+                var textRect = new RectangleF(x + pad, y + pad, bw - pad * 2, sz.Height);
+                e.Graphics.DrawString(text, TG.FontRegular(9.5f), new SolidBrush(TG.TextPrimary), textRect);
+
+                // Time & Ticks: Vẽ sát mép dưới của bh đã được nới rộng
+                var timeSz = e.Graphics.MeasureString(time, TG.FontRegular(7.5f));
+
+                // Đẩy tx sang trái thêm một chút nếu là tin nhắn gửi đi để dành chỗ cho Tick
+                float tx = x + bw - timeSz.Width - pad - (isOut ? 20 : 0);
+                float ty = y + bh - timeSz.Height - 6; // Cách đáy bubble 6px
+
+
+                // Vẽ thời gian
+                e.Graphics.DrawString(time, TG.FontRegular(7.5f), new SolidBrush(TG.TextTime), tx, ty);
+
+                // Ticks: Căn chỉnh lại để "✓✓" nằm ngay ngắn trước thời gian
+                if (isOut)
+                {
+                    // Vẽ icon check cách thời gian 2px về bên phải (hoặc bên trái tùy bạn)
+                    // Ở đây mình vẽ sau thời gian cho giống Telegram hiện đại
+                    float tickX = x + bw - pad - 16;
+                    e.Graphics.DrawString("✓✓", TG.FontRegular(8f), new SolidBrush(TG.Blue), tickX, ty - 1);
+                }
             };
 
             // Context menu

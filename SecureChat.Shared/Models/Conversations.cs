@@ -7,9 +7,7 @@ namespace SecureChat.Models
 	[Table("Conversations")]
 	public class Conversation
 	{
-		[Key]
-		[Column("conversation_id")]
-		[MaxLength(8)]
+		[Key, Column("conversation_id"), MaxLength(8)]
 		public string ConversationID { get; set; } = "";
 
 		[Column("conversation_type")]
@@ -21,12 +19,10 @@ namespace SecureChat.Models
 		[Column("avatar_url")]
 		public string? AvatarURL { get; set; }
 
-		[Column("created_by")]
-		[MaxLength(8)]
+		[Column("created_by"), MaxLength(8)]
 		public string? CreatedBy { get; set; }
 
-		[Column("last_message_id")]
-		[MaxLength(8)]
+		[Column("last_message_id"), MaxLength(8)]
 		public string? LastMessageID { get; set; }
 
 		[Column("last_activity_at")]
@@ -54,30 +50,22 @@ namespace SecureChat.Models
 	[Table("ConversationMembers")]
 	public class ConversationMember
 	{
-		[Key]
-		[Column("member_id")]
-		[MaxLength(8)]
+		[Key, Column("member_id"), MaxLength(8)]
 		public string MemberID { get; set; } = "";
 
-		[Required]
-		[Column("conversation_id")]
-		[MaxLength(8)]
+		[Required, Column("conversation_id"), MaxLength(8)]
 		public string ConversationID { get; set; } = "";
 
-		[Required]
-		[Column("user_id")]
-		[MaxLength(8)]
+		[Required, Column("user_id"), MaxLength(8)]
 		public string UserID { get; set; } = "";
 
 		[Column("role")]
 		public MemberRole Role { get; set; } = MemberRole.Member;
 
-		[Column("nickname")]
-		[MaxLength(64)]
+		[Column("nickname"), MaxLength(64)]
 		public string? Nickname { get; set; }
 
-		[Required]
-		[Column("encrypted_key")]
+		[Required, Column("encrypted_key")]
 		public string EncryptedKey { get; set; } = "";
 
 		[Column("joined_at")]
@@ -92,16 +80,13 @@ namespace SecureChat.Models
 		[Column("banned_until")]
 		public DateTime? BannedUntil { get; set; }
 
-		[Column("last_read_msg_id")]
-		[MaxLength(8)]
+		[Column("last_read_msg_id"), MaxLength(8)]
 		public string? LastReadMsgID { get; set; }
 
-		[ForeignKey(nameof(ConversationID))]
-		[InverseProperty(nameof(Conversation.Members))]
+		[ForeignKey(nameof(ConversationID)), InverseProperty(nameof(Conversation.Members))]
 		public Conversation Conversation { get; set; } = null!;
 
-		[ForeignKey(nameof(UserID))]
-		[InverseProperty(nameof(User.ConversationMemberships))]
+		[ForeignKey(nameof(UserID)), InverseProperty(nameof(User.ConversationMemberships))]
 		public User User { get; set; } = null!;
 
 		[ForeignKey(nameof(LastReadMsgID))]

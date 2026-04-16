@@ -144,7 +144,7 @@ namespace SecureChat.Client
             _lblStepDesc = new Label //  lưu mô tả nhỏ bên dưới tiêu đề
             {
                 AutoSize = false,
-                Height = 36,
+                Height = 44,
                 Font = TG.FontRegular(9f),
                 ForeColor = TG.TextSecondary,
                 BackColor = Color.Transparent,
@@ -356,7 +356,10 @@ namespace SecureChat.Client
             var pnlSteps = pnlMain.Controls[2] as Panel;
 
             _lblStepTitle.SetBounds(0, y, pnlMain.Width, 26); y += 30;
-            _lblStepDesc.SetBounds(10, y, pnlMain.Width - 20, 36); y += 44;
+
+            // _lblStepDesc.SetBounds(10, y, pnlMain.Width - 20, 36); y += 44;
+            _lblStepDesc.SetBounds(10, y, pnlMain.Width - 20, 44); y += 52;
+
             pnlSteps?.SetBounds(0, y, pnlMain.Width, 48); y += 56;
 
             _pnlContent.SetBounds(pad, y, w, 160);

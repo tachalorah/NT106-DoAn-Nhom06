@@ -92,6 +92,15 @@ namespace SecureChat.Client
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // --- DÒNG FIX QUAN TRỌNG ---
+            // Xóa sạch dấu vết cũ bằng màu của Panel cha để tránh bị "xanh phủ"
+            if (this.Parent != null)
+            {
+                using var parentBrush = new SolidBrush(this.Parent.BackColor);
+                e.Graphics.FillRectangle(parentBrush, this.ClientRectangle);
+            }
+
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);
             using var path = RoundedPanel.GetRoundedPath(rect, Radius);
 
@@ -99,16 +108,32 @@ namespace SecureChat.Client
 
             if (IsOutlined)
             {
-                e.Graphics.FillPath(new SolidBrush(Color.White), path);
+                // e.Graphics.FillPath(new SolidBrush(Color.White), path);
+                // e.Graphics.DrawPath(new Pen(NormalColor, 1.5f), path);
+                // Nếu dùng NormalColor = Transparent, hãy vẽ màu trắng làm nền
+                e.Graphics.FillPath(Brushes.White, path);
                 e.Graphics.DrawPath(new Pen(NormalColor, 1.5f), path);
+
+
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
                 e.Graphics.DrawString(Text, Font, new SolidBrush(NormalColor), rect, sf);
             }
             else
             {
-                e.Graphics.FillPath(new SolidBrush(bg), path);
+                /*e.Graphics.FillPath(new SolidBrush(bg), path);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                e.Graphics.DrawString(Text, Font, new SolidBrush(TextColor), rect, sf);
+                e.Graphics.DrawString(Text, Font, new SolidBrush(TextColor), rect, sf);*/
+                // Nếu bg là Transparent, WinForms sẽ bị rác, nên ta kiểm tra:
+                if (bg != Color.Transparent)
+                {
+                    using var brush = new SolidBrush(bg);
+                    e.Graphics.FillPath(brush, path);
+                }
+
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                using var textBrush = new SolidBrush(TextColor);
+                e.Graphics.DrawString(Text, Font, textBrush, rect, sf);
+
             }
         }
     }
@@ -141,6 +166,17 @@ namespace SecureChat.Client
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+
+            // --- DÒNG FIX QUAN TRỌNG ---
+            if (this.Parent != null)
+            {
+                using var parentBrush = new SolidBrush(this.Parent.BackColor);
+                e.Graphics.FillRectangle(parentBrush, this.ClientRectangle);
+            }
+
+            
+            
             int size = Math.Min(Width, Height);
             var rect = new Rectangle(0, 0, size - 1, size - 1);
 
@@ -156,6 +192,16 @@ namespace SecureChat.Client
             {
                 e.Graphics.FillEllipse(new SolidBrush(_avatarColor == default ? TG.Blue : _avatarColor), rect);
                 string initials = GetInitials(DisplayName);
+
+                using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                float fontSizee = size * 0.32f;
+
+                // e.Graphics.DrawString(initials, TG.FontSemiBold(fontSize), Brushes.White, rect, sf);
+                // TẠO RECT RIÊNG CHO CHỮ: Đẩy Y xuống 2 pixel để bù trừ độ lệch của Font
+                RectangleF textRect = new RectangleF(rect.X, rect.Y + 2, rect.Width, rect.Height);
+
+                e.Graphics.DrawString(initials, TG.FontSemiBold(fontSizee), Brushes.White, textRect, sf);
+
 
                 // Draw initials as strict single-line text to avoid wrap/clipping artifacts.
                 float fontSize = Math.Max(10f, size * 0.34f);
