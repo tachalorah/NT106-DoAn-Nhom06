@@ -4,11 +4,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
+
 using SecureChat.Client.Components.Call;
 using SecureChat.Client.Forms.Call;
 
 using SecureChat.Client.Forms.Settings;
 using SecureChat.Client.Models;
+
+using SecureChat.Client.Forms.Chat;
+
 
 namespace SecureChat.Client
 {
@@ -349,6 +353,7 @@ namespace SecureChat.Client
         {
             _logger($"FakeAudioHandler.SetMutedAsync(muted={muted})");
             return Task.CompletedTask;
+
         }
     }
 }

@@ -1,0 +1,366 @@
+namespace SecureChat.Client.Forms.Chat
+{
+    public sealed class frmEditGroup : Form
+    {
+        private readonly TextBox _txtName;
+        private readonly TextBox _txtDescription;
+        private readonly PictureBox _avatar;
+
+        private readonly Label _lblDescPlaceholder;
+        private readonly Label _lblGroupTypeValue;
+        private readonly Label _lblChatHistoryValue;
+        private readonly Label _lblInviteLinksValue;
+        private readonly Label _lblAdminsValue;
+        private readonly Label _lblMembersValue;
+
+        private readonly System.Windows.Forms.Timer _fadeTimer;
+
+        private string _groupType = "Private";
+        private string _chatHistory = "Hidden";
+        private int _inviteLinksCount = 1;
+        private int _adminsCount = 1;
+        private int _membersCount = 2;
+        private readonly List<frmMembersSettings.MemberItemData> _members =
+        [
+            new frmMembersSettings.MemberItemData("Hoang Hieu", "online", "owner", Color.FromArgb(0xF3, 0x7A, 0x5A), "HH"),
+            new frmMembersSettings.MemberItemData("Duck Cyber", "last seen recently", string.Empty, Color.FromArgb(0x5C, 0xA5, 0xEC), "DC")
+        ];
+
+        public string GroupName { get; private set; }
+        public string DescriptionText => _txtDescription.Text.Trim();
+        public string GroupType => _groupType;
+        public string ChatHistoryMode => _chatHistory;
+        public int InviteLinksCount => _inviteLinksCount;
+        public int AdminsCount => _adminsCount;
+        public int MembersCount => _membersCount;
+        public Image? GroupAvatar => _avatar.Image;
+
+        public frmEditGroup(string currentName)
+        {
+            GroupName = currentName;
+
+            Text = "Edit group";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            StartPosition = FormStartPosition.CenterParent;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            ControlBox = false;
+            BackColor = Color.FromArgb(0xF7, 0xF8, 0xFA);
+            Font = new Font("Segoe UI", 10f);
+            ClientSize = new Size(520, 720);
+            DoubleBuffered = true;
+            Opacity = 0;
+
+            _fadeTimer = new System.Windows.Forms.Timer { Interval = 14 };
+            _fadeTimer.Tick += (_, __) =>
+            {
+                if (Opacity >= 1)
+                {
+                    _fadeTimer.Stop();
+                    return;
+                }
+                Opacity = Math.Min(1, Opacity + 0.12);
+            };
+            Shown += (_, __) => _fadeTimer.Start();
+
+            var lblTitle = new Label
+            {
+                Text = "Edit group",
+                Font = new Font("Segoe UI Semibold", 18f),
+                ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D),
+                Location = new Point(20, 18),
+                Size = new Size(260, 38)
+            };
+
+            var avatarHost = new Panel
+            {
+                Location = new Point(28, 78),
+                Size = new Size(92, 92),
+                BackColor = Color.Transparent,
+                Cursor = Cursors.Hand
+            };
+
+            _avatar = new PictureBox
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(0x5C, 0xA5, 0xEC),
+                // Fill the full circular frame when user selects an image.
+                SizeMode = PictureBoxSizeMode.StretchImage,
+                Cursor = Cursors.Hand
+            };
+            _avatar.Paint += (_, e) =>
+            {
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                if (_avatar.Image == null)
+                {
+                    e.Graphics.FillEllipse(new SolidBrush(Color.FromArgb(0x5C, 0xA5, 0xEC)), 0, 0, _avatar.Width - 1, _avatar.Height - 1);
+                    TextRenderer.DrawText(e.Graphics, "\U0001F4F7", new Font("Segoe UI Emoji", 24f), _avatar.ClientRectangle, Color.White,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                }
+
+                using var path = new System.Drawing.Drawing2D.GraphicsPath();
+                path.AddEllipse(0, 0, _avatar.Width, _avatar.Height);
+                _avatar.Region = new Region(path);
+            };
+            _avatar.Click += (_, __) => PickAvatarImage();
+            avatarHost.Click += (_, __) => PickAvatarImage();
+            avatarHost.Controls.Add(_avatar);
+
+            var lblName = new Label
+            {
+                Text = "Group name",
+                Font = new Font("Segoe UI", 11f),
+                ForeColor = Color.FromArgb(0x2A, 0xAB, 0xEE),
+                Location = new Point(150, 86),
+                Size = new Size(170, 28)
+            };
+
+            _txtName = new TextBox
+            {
+                Text = currentName,
+                BorderStyle = BorderStyle.None,
+                Font = new Font("Segoe UI", 16f),
+                ForeColor = Color.FromArgb(0x1F, 0x2D, 0x3D),
+                Location = new Point(150, 116),
+                Size = new Size(320, 36),
+                BackColor = Color.FromArgb(0xF7, 0xF8, 0xFA)
+            };
+
+            var nameUnderline = new Panel
+            {
+                BackColor = Color.FromArgb(0x2A, 0xAB, 0xEE),
+                Location = new Point(150, 156),
+                Size = new Size(280, 2)
+            };
+
+            _lblDescPlaceholder = new Label
+            {
+                Text = "Description (optional)",
+                Font = new Font("Segoe UI", 10.5f),
+                ForeColor = Color.FromArgb(0x9A, 0xA6, 0xB3),
+                Location = new Point(28, 186),
+                Size = new Size(240, 26),
+                BackColor = Color.Transparent,
+                Cursor = Cursors.IBeam
+            };
+
+            _txtDescription = new TextBox
+            {
+                BorderStyle = BorderStyle.None,
+                Font = new Font("Segoe UI", 11f),
+                ForeColor = Color.FromArgb(0x3B, 0x4A, 0x5A),
+                Location = new Point(28, 214),
+                Size = new Size(460, 58),
+                Multiline = true,
+                BackColor = Color.FromArgb(0xF7, 0xF8, 0xFA)
+            };
+            _txtDescription.TextChanged += (_, __) => _lblDescPlaceholder.Visible = string.IsNullOrWhiteSpace(_txtDescription.Text);
+            _lblDescPlaceholder.Click += (_, __) => _txtDescription.Focus();
+
+            var section = new Panel
+            {
+                Location = new Point(0, 286),
+                Size = new Size(520, 312),
+                BackColor = Color.White
+            };
+            section.Controls.Add(new Panel { Location = new Point(0, 0), Size = new Size(520, 1), BackColor = Color.FromArgb(0xE6, 0xEB, 0xF1) });
+
+            var rowGroupType = BuildSettingsRow("\u2699\uFE0F  Group type", _groupType, out _lblGroupTypeValue);
+            rowGroupType.Location = new Point(0, 8);
+            BindRowAction(rowGroupType, OpenGroupTypeSettings);
+
+            var rowHistory = BuildSettingsRow("\U0001F4AC  Chat history for new members", _chatHistory, out _lblChatHistoryValue);
+            rowHistory.Location = new Point(0, 54);
+            BindRowAction(rowHistory, OpenChatHistorySettings);
+
+            var rowInvite = BuildSettingsRow("\U0001F517  Invite links", _inviteLinksCount.ToString(), out _lblInviteLinksValue);
+            rowInvite.Location = new Point(0, 100);
+            BindRowAction(rowInvite, OpenInviteLinksSettings);
+
+            var rowAdmins = BuildSettingsRow("\U0001F6E1\uFE0F  Administrators", _adminsCount.ToString(), out _lblAdminsValue);
+            rowAdmins.Location = new Point(0, 146);
+            BindRowAction(rowAdmins, OpenAdministratorsSettings);
+
+            var rowMembers = BuildSettingsRow("\U0001F465  Members", _membersCount.ToString(), out _lblMembersValue);
+            rowMembers.Location = new Point(0, 192);
+            BindRowAction(rowMembers, OpenMembersSettings);
+
+            section.Controls.AddRange(new Control[] { rowGroupType, rowHistory, rowInvite, rowAdmins, rowMembers });
+
+            var btnCancel = BuildBottomButton("Cancel", Color.FromArgb(0x2A, 0xAB, 0xEE));
+            btnCancel.Location = new Point(300, 676);
+            btnCancel.Click += (_, __) => DialogResult = DialogResult.Cancel;
+
+            var btnSave = BuildBottomButton("Save", Color.FromArgb(0x2A, 0xAB, 0xEE), bold: true);
+            btnSave.Location = new Point(392, 676);
+            btnSave.Click += (_, __) =>
+            {
+                var n = _txtName.Text.Trim();
+                if (string.IsNullOrWhiteSpace(n))
+                {
+                    MessageBox.Show(this, "Group name cannot be empty.", "Validation", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    _txtName.Focus();
+                    return;
+                }
+
+                GroupName = n;
+                DialogResult = DialogResult.OK;
+            };
+
+            Controls.AddRange(new Control[]
+            {
+                lblTitle, avatarHost, lblName, _txtName, nameUnderline,
+                _lblDescPlaceholder, _txtDescription, section,
+                btnCancel, btnSave
+            });
+        }
+
+        private Panel BuildSettingsRow(string leftText, string rightText, out Label rightValue)
+        {
+            var pnl = new Panel
+            {
+                Size = new Size(520, 46),
+                BackColor = Color.White,
+                Cursor = Cursors.Hand
+            };
+
+            var left = new Label
+            {
+                Text = leftText,
+                Font = new Font("Segoe UI Emoji", 10.5f),
+                ForeColor = Color.FromArgb(0x2D, 0x3B, 0x4E),
+                Location = new Point(30, 8),
+                Size = new Size(330, 30),
+                BackColor = Color.Transparent
+            };
+
+            rightValue = new Label
+            {
+                Text = rightText,
+                Font = new Font("Segoe UI", 10.5f),
+                ForeColor = Color.FromArgb(0x2A, 0xAB, 0xEE),
+                TextAlign = ContentAlignment.MiddleRight,
+                Location = new Point(360, 8),
+                Size = new Size(130, 30),
+                BackColor = Color.Transparent
+            };
+
+            var sep = new Panel
+            {
+                Location = new Point(30, 45),
+                Size = new Size(460, 1),
+                BackColor = Color.FromArgb(0xEE, 0xF2, 0xF7)
+            };
+
+            pnl.Controls.AddRange(new Control[] { left, rightValue, sep });
+
+            pnl.MouseEnter += (_, __) => pnl.BackColor = Color.FromArgb(0xF7, 0xFA, 0xFD);
+            pnl.MouseLeave += (_, __) => pnl.BackColor = Color.White;
+
+            return pnl;
+        }
+
+        private static void BindRowAction(Panel row, Action action)
+        {
+            row.Click += (_, __) => action();
+            foreach (Control c in row.Controls)
+                c.Click += (_, __) => action();
+        }
+
+        private void OpenGroupTypeSettings()
+        {
+            using var dlg = new frmGroupTypeSettings(_groupType);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            _groupType = dlg.GroupType;
+            _lblGroupTypeValue.Text = _groupType;
+        }
+
+        private void OpenChatHistorySettings()
+        {
+            using var dlg = new frmChatHistorySettings(_chatHistory);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            _chatHistory = dlg.ChatHistoryMode;
+            _lblChatHistoryValue.Text = _chatHistory;
+        }
+
+        private void OpenInviteLinksSettings()
+        {
+            using var dlg = new frmInviteLinksSettings(_inviteLinksCount);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            _inviteLinksCount = dlg.LinksCount;
+            _lblInviteLinksValue.Text = _inviteLinksCount.ToString();
+        }
+
+        private void OpenAdministratorsSettings()
+        {
+            using var dlg = new frmAdministratorsSettings(_adminsCount);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            _adminsCount = dlg.AdministratorsCount;
+            _lblAdminsValue.Text = _adminsCount.ToString();
+        }
+
+        private void OpenMembersSettings()
+        {
+            using var dlg = new frmMembersSettings(_members);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            _members.Clear();
+            _members.AddRange(dlg.Members);
+            _membersCount = _members.Count;
+            _lblMembersValue.Text = _membersCount.ToString();
+        }
+
+        private void PickAvatarImage()
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Title = "Choose group avatar",
+                Filter = "Image files|*.png;*.jpg;*.jpeg;*.bmp;*.webp",
+                Multiselect = false
+            };
+            if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+            try
+            {
+                using var fs = new FileStream(ofd.FileName, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var img = Image.FromStream(fs);
+                _avatar.Image?.Dispose();
+                _avatar.Image = new Bitmap(img);
+                _avatar.Invalidate();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Failed to load image.\n{ex.Message}", "Image", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static Button BuildBottomButton(string text, Color color, bool bold = false)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = color,
+                Font = new Font("Segoe UI", 11f, bold ? FontStyle.Bold : FontStyle.Regular),
+                Size = new Size(90, 34),
+                Cursor = Cursors.Hand
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            return btn;
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _fadeTimer.Stop();
+            _fadeTimer.Dispose();
+            _avatar.Image?.Dispose();
+            _avatar.Image = null;
+            base.OnFormClosed(e);
+        }
+    }
+}

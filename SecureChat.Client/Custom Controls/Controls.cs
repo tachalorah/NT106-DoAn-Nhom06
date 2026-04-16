@@ -192,14 +192,31 @@ namespace SecureChat.Client
             {
                 e.Graphics.FillEllipse(new SolidBrush(_avatarColor == default ? TG.Blue : _avatarColor), rect);
                 string initials = GetInitials(DisplayName);
+
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                float fontSize = size * 0.32f;
+                float fontSizee = size * 0.32f;
 
                 // e.Graphics.DrawString(initials, TG.FontSemiBold(fontSize), Brushes.White, rect, sf);
                 // TẠO RECT RIÊNG CHO CHỮ: Đẩy Y xuống 2 pixel để bù trừ độ lệch của Font
                 RectangleF textRect = new RectangleF(rect.X, rect.Y + 2, rect.Width, rect.Height);
 
-                e.Graphics.DrawString(initials, TG.FontSemiBold(fontSize), Brushes.White, textRect, sf);
+                e.Graphics.DrawString(initials, TG.FontSemiBold(fontSizee), Brushes.White, textRect, sf);
+
+
+                // Draw initials as strict single-line text to avoid wrap/clipping artifacts.
+                float fontSize = Math.Max(10f, size * 0.34f);
+                using var textFont = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
+                TextRenderer.DrawText(
+                    e.Graphics,
+                    initials,
+                    textFont,
+                    rect,
+                    Color.White,
+                    TextFormatFlags.HorizontalCenter |
+                    TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.SingleLine |
+                    TextFormatFlags.NoPadding |
+                    TextFormatFlags.EndEllipsis);
             }
 
             if (ShowOnline)
@@ -214,10 +231,16 @@ namespace SecureChat.Client
 
         private string GetInitials(string name)
         {
-            if (string.IsNullOrEmpty(name)) return "?";
-            var parts = name.Trim().Split(' ');
-            if (parts.Length >= 2) return $"{parts[0][0]}{parts[1][0]}".ToUpper();
-            return name.Length >= 2 ? name.Substring(0, 2).ToUpper() : name.ToUpper();
+            if (string.IsNullOrWhiteSpace(name)) return "?";
+
+            var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+                return (parts[0][0].ToString() + parts[^1][0].ToString()).ToUpperInvariant();
+
+            var single = parts[0];
+            return single.Length >= 2
+                ? single[..2].ToUpperInvariant()
+                : single.ToUpperInvariant();
         }
     }
 

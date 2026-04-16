@@ -25,6 +25,7 @@ namespace SecureChat.Client
         private Panel _pnlConvList; // danh sách cuộc trò chuyện
 
         // ── Chat area controls ─────────────────────
+
         private Panel _pnlChatHeader; // thanh header trên cùng khu chat
 
         private Panel _pnlMessages; // vùng hiển thị bong bóng tin nhắn
@@ -33,6 +34,18 @@ namespace SecureChat.Client
         private TelegramTextBox _tbMessage; // TextBox gõ tin nhắn
         private Label _lblChatName, _lblChatStatus; // tên và trạng thái người nhận
         private AvatarControl _chatAvatar; //  avatar tròn người nhận
+
+        private ContextMenuStrip _chatMoreMenu;
+        private ToolStripMenuItem _mnuMuteNotifications;
+        private ToolStripMenuItem _mnuUnmuteNow;
+        private ToolStripMenuItem _mnuDisableSound;
+        private ToolStripMenuItem _mnuMuteForever;
+        private ToolStripMenuItem _mnuMuteFor;
+        private ToolStripItem[] _muteOptionItems;
+        private bool _notificationsMuted;
+        private bool _notificationsSoundEnabled = true;
+        private DateTime? _muteUntilUtc;
+
 
         // ── Settings menu controls ─────────────────
         private Panel _pnlSettingsHeader;
@@ -409,6 +422,11 @@ namespace SecureChat.Client
             var btnSearch = MakeChatHeaderBtn("🔍");
             var btnVideo = MakeChatHeaderBtn("📹");
             var btnMore = MakeChatHeaderBtn("⋮");
+            btnMore.Click += (s, e) =>
+            {
+                EnsureChatMoreMenu();
+                _chatMoreMenu.Show(btnMore, new Point(btnMore.Width - _chatMoreMenu.Width, btnMore.Height + 2));
+            };
 
             // Khởi tạo nút và gán vào biến đã khai báo ở trên
             _btnToggleSidebar = MakeChatHeaderBtn("⏪");
@@ -479,6 +497,253 @@ namespace SecureChat.Client
             _pnlChat.Controls.Add(_pnlChatHeader);
 
             _pnlMessages.Resize += (s, e) => _pnlMessages.Invalidate();
+        }
+
+        private void EnsureChatMoreMenu()
+        {
+            if (_chatMoreMenu != null) return;
+
+            _chatMoreMenu = new ContextMenuStrip
+            {
+                ShowImageMargin = false,
+                BackColor = Color.White,
+                ForeColor = TG.TextPrimary,
+                Font = new Font("Segoe UI", 10f),
+                Renderer = new ToolStripProfessionalRenderer(new ChatMenuColorTable())
+            };
+
+            _mnuMuteNotifications = CreateChatMenuItem("🔕  Mute notifications", (_, __) => ToggleMuteNotificationsQuick());
+
+            _mnuUnmuteNow = CreateChatMenuItem("🔊  Unmute now", (_, __) => UnmuteNow());
+            _mnuDisableSound = CreateChatMenuItem("🔇  Disable sound", (_, __) => ToggleDisableSound());
+            _mnuMuteForever = CreateChatMenuItem("⛔  Mute forever", (_, __) => SetMuteForever());
+            _mnuMuteFor = CreateChatMenuItem("⏳  Mute for...", null);
+
+            _mnuMuteFor.DropDownItems.Add(CreateChatSubMenuItem("30 minutes", (_, __) => SetMuteFor(TimeSpan.FromMinutes(30))));
+            _mnuMuteFor.DropDownItems.Add(CreateChatSubMenuItem("1 hour", (_, __) => SetMuteFor(TimeSpan.FromHours(1))));
+            _mnuMuteFor.DropDownItems.Add(CreateChatSubMenuItem("8 hours", (_, __) => SetMuteFor(TimeSpan.FromHours(8))));
+            _mnuMuteFor.DropDownItems.Add(CreateChatSubMenuItem("1 day", (_, __) => SetMuteFor(TimeSpan.FromDays(1))));
+            _mnuMuteFor.DropDownItems.Add(CreateChatSubMenuItem("1 week", (_, __) => SetMuteFor(TimeSpan.FromDays(7))));
+
+            _muteOptionItems = new ToolStripItem[]
+            {
+                _mnuUnmuteNow,
+                _mnuDisableSound,
+                _mnuMuteForever,
+                _mnuMuteFor
+            };
+
+            foreach (var item in _muteOptionItems)
+                _mnuMuteNotifications.DropDownItems.Add(item);
+
+            var mnuViewInfo = CreateChatMenuItem("ℹ️  View group info", (_, __) => OpenGroupInfo());
+            var mnuManageGroup = CreateChatMenuItem("🎛️  Manage group", (_, __) => OpenEditGroupFromChat());
+            var mnuCreatePoll = CreateChatMenuItem("📊  Create poll", (_, __) => CreatePoll());
+            var mnuClearHistory = CreateChatMenuItem("🧹  Clear history", (_, __) => ClearHistory());
+            var mnuDeleteLeave = CreateChatMenuItem("🚪  Delete and leave", (_, __) => DeleteAndLeave(), Color.FromArgb(0xE2, 0x4B, 0x4A));
+
+            _chatMoreMenu.Items.Add(_mnuMuteNotifications);
+            _chatMoreMenu.Items.Add(new ToolStripSeparator());
+            _chatMoreMenu.Items.Add(mnuViewInfo);
+            _chatMoreMenu.Items.Add(mnuManageGroup);
+            _chatMoreMenu.Items.Add(mnuCreatePoll);
+            _chatMoreMenu.Items.Add(mnuClearHistory);
+            _chatMoreMenu.Items.Add(new ToolStripSeparator());
+            _chatMoreMenu.Items.Add(mnuDeleteLeave);
+
+            RefreshMuteMenuState();
+        }
+
+        private ToolStripMenuItem CreateChatMenuItem(string text, EventHandler onClick, Color? foreColor = null)
+        {
+            var item = new ToolStripMenuItem
+            {
+                Text = text,
+                ForeColor = foreColor ?? TG.TextPrimary,
+                Font = new Font("Segoe UI Emoji", 10f),
+                Padding = new Padding(10, 8, 10, 8)
+            };
+            item.Click += onClick;
+            return item;
+        }
+
+        private ToolStripMenuItem CreateChatSubMenuItem(string text, EventHandler onClick)
+        {
+            var item = new ToolStripMenuItem
+            {
+                Text = text,
+                ForeColor = TG.TextPrimary,
+                Font = new Font("Segoe UI", 10f),
+                Padding = new Padding(8, 6, 8, 6)
+            };
+            item.Click += onClick;
+            return item;
+        }
+
+        private void ToggleDisableSound()
+        {
+            _notificationsSoundEnabled = !_notificationsSoundEnabled;
+            RefreshMuteMenuState();
+            MessageBox.Show(this,
+                _notificationsSoundEnabled ? "Notification sound enabled for this chat." : "Notification sound disabled for this chat.",
+                "Notifications",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void SetMuteForever()
+        {
+            // Toggle behavior: choose again => unmute forever off
+            if (_notificationsMuted && !_muteUntilUtc.HasValue)
+            {
+                UnmuteNow();
+                return;
+            }
+
+            _notificationsMuted = true;
+            _muteUntilUtc = null;
+            RefreshMuteMenuState();
+            MessageBox.Show(this,
+                "Notifications are muted forever for this chat.",
+                "Notifications",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void SetMuteFor(TimeSpan duration)
+        {
+            _notificationsMuted = true;
+            _muteUntilUtc = DateTime.UtcNow.Add(duration);
+            RefreshMuteMenuState();
+            MessageBox.Show(this,
+                $"Notifications are muted for {FormatDuration(duration)}.",
+                "Notifications",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private static string FormatDuration(TimeSpan duration)
+        {
+            if (duration.TotalMinutes < 60) return $"{(int)duration.TotalMinutes} minutes";
+            if (duration.TotalHours < 24) return $"{(int)duration.TotalHours} hours";
+            return $"{(int)duration.TotalDays} days";
+        }
+
+        private void RefreshMuteMenuState()
+        {
+            if (_mnuMuteNotifications == null) return;
+
+            if (_muteUntilUtc.HasValue && DateTime.UtcNow >= _muteUntilUtc.Value)
+            {
+                _notificationsMuted = false;
+                _muteUntilUtc = null;
+            }
+
+            // If mute forever -> show direct "Unmute" action without submenu popup.
+            if (_notificationsMuted && !_muteUntilUtc.HasValue)
+            {
+                if (_mnuMuteNotifications.DropDownItems.Count > 0)
+                    _mnuMuteNotifications.DropDownItems.Clear();
+
+                _mnuMuteNotifications.Text = "🔊  Unmute";
+            }
+            else
+            {
+                if (_mnuMuteNotifications.DropDownItems.Count == 0)
+                {
+                    foreach (var item in _muteOptionItems)
+                        _mnuMuteNotifications.DropDownItems.Add(item);
+                }
+
+                _mnuMuteNotifications.Text = _notificationsMuted
+                    ? $"🔕  Muted until {_muteUntilUtc.Value.ToLocalTime():HH:mm}"
+                    : "🔔  Mute notifications";
+            }
+
+            if (_mnuUnmuteNow != null)
+                _mnuUnmuteNow.Visible = _notificationsMuted;
+            if (_mnuDisableSound != null)
+                _mnuDisableSound.Checked = !_notificationsSoundEnabled;
+            if (_mnuMuteForever != null)
+                _mnuMuteForever.Checked = _notificationsMuted && !_muteUntilUtc.HasValue;
+            if (_mnuMuteFor != null)
+                _mnuMuteFor.Checked = _notificationsMuted && _muteUntilUtc.HasValue;
+        }
+
+        private void ToggleMuteNotificationsQuick()
+        {
+            // Direct toggle only when menu is in "Unmute" mode.
+            if (_notificationsMuted && !_muteUntilUtc.HasValue)
+            {
+                UnmuteNow();
+            }
+        }
+
+        private void UnmuteNow()
+        {
+            _notificationsMuted = false;
+            _muteUntilUtc = null;
+            RefreshMuteMenuState();
+
+            MessageBox.Show(this,
+                "Notifications are enabled for this chat.",
+                "Notifications",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void OpenGroupInfo()
+        {
+            using var dlg = new SecureChat.Client.Forms.Chat.frmGroupInfo();
+            dlg.StartPosition = FormStartPosition.CenterParent;
+            dlg.ShowDialog(this);
+        }
+
+        private void OpenEditGroupFromChat()
+        {
+            using var dlg = new SecureChat.Client.Forms.Chat.frmEditGroup(_lblChatName.Text);
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            _lblChatName.Text = dlg.GroupName;
+        }
+
+        private void CreatePoll()
+        {
+            using var dlg = new SecureChat.Client.Forms.Chat.frmCreatePoll();
+            if (dlg.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            var pollText = $"📊 {dlg.PollQuestion}";
+            if (!string.IsNullOrWhiteSpace(dlg.PollDescription))
+                pollText += $"\n{dlg.PollDescription}";
+
+            for (var i = 0; i < dlg.PollOptions.Count; i++)
+                pollText += $"\n{i + 1}. {dlg.PollOptions[i]}";
+
+            _msgs.Add((pollText, true, DateTime.Now.ToString("h:mm tt")));
+            BuildMessages();
+        }
+
+        private void ClearHistory()
+        {
+            using var dlg = new SecureChat.Client.Forms.Chat.frmClearHistory(_lblChatName.Text);
+            if (dlg.ShowDialog(this) != DialogResult.OK || !dlg.DeleteConfirmed)
+                return;
+
+            _msgs.Clear();
+            BuildMessages();
+        }
+
+        private void DeleteAndLeave()
+        {
+            var members = new[] { "Duck Cyber", "Sim 18a3", "Tuấn Thành", "Hoang Hieu" };
+            using var dlg = new SecureChat.Client.Forms.Chat.frmLeaveGroup(_lblChatName.Text, "Duck Cyber", members);
+            if (dlg.ShowDialog(this) != DialogResult.OK || !dlg.LeaveConfirmed)
+                return;
+
+            _msgs.Clear();
+            BuildMessages();
+            _lblChatStatus.Text = $"You left this group · New owner: {dlg.AppointedAdminName}";
         }
 
         // Cache ảnh nền để không load lại mỗi lần paint
@@ -1227,7 +1492,20 @@ namespace SecureChat.Client
             _slideTimer?.Dispose();
             _wallpaperWatcher?.Dispose();
             _wallpaper?.Dispose();
+            _chatMoreMenu?.Dispose();
             base.OnFormClosed(e);
+        }
+
+        private sealed class ChatMenuColorTable : ProfessionalColorTable
+        {
+            public override Color MenuItemSelected => Color.FromArgb(0xF2, 0xF5, 0xF9);
+            public override Color MenuItemBorder => Color.FromArgb(0xD9, 0xE1, 0xEB);
+            public override Color ToolStripDropDownBackground => Color.White;
+            public override Color SeparatorDark => Color.FromArgb(0xEA, 0xEE, 0xF3);
+            public override Color SeparatorLight => Color.FromArgb(0xEA, 0xEE, 0xF3);
+            public override Color ImageMarginGradientBegin => Color.White;
+            public override Color ImageMarginGradientMiddle => Color.White;
+            public override Color ImageMarginGradientEnd => Color.White;
         }
 
         private Image LoadAndTintIcon(string fileName, Color tint)

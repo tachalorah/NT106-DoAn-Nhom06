@@ -5,41 +5,37 @@ namespace SecureChat.Client.Forms.Chat
 {
     public partial class frmGroupInfo : Form
     {
-        private void InitializeComponent()
-        {
-            // Built fully in code
-        }
+        private void InitializeComponent() { }
 
-        private const int FORM_WIDTH = 520;
-        private const int FORM_HEIGHT = 660;
-        private const int HEADER_HEIGHT = 180;
-        private const int SECTION_PAD = 16;
-        private const int NOTIFY_HEIGHT = 56;
-        private const int MEMBERS_HEADER_HEIGHT = 40;
-        private const int BOTTOM_HEIGHT = 56;
-        private int ListTop => HEADER_HEIGHT + NOTIFY_HEIGHT + MEMBERS_HEADER_HEIGHT + 12;
+        private const int FORM_WIDTH = 540;
+        private const int FORM_HEIGHT = 760;
+        private const int HEADER_HEIGHT = 210;
+        private const int ACTIONS_HEIGHT = 96;
+        private const int MEMBERS_HEADER_HEIGHT = 48;
+        private const int BOTTOM_HEIGHT = 18;
+        private const int SECTION_PAD = 18;
 
-        private const string GLYPH_MORE = "\uE712";
-        private const string GLYPH_BELL = "\uE7ED";
-        private const string GLYPH_PEOPLE = "\uE716";
-        private const string GLYPH_ADD = "\uE710";
+        private static readonly Color C_BG = Color.White;
+        private static readonly Color C_TEXT = Color.FromArgb(0x1F, 0x2D, 0x3D);
+        private static readonly Color C_SUBTEXT = Color.FromArgb(0x8A, 0x98, 0xA6);
+        private static readonly Color C_SEPARATOR = Color.FromArgb(0xE8, 0xEC, 0xF1);
+        private static readonly Color C_DANGER = Color.FromArgb(0xE2, 0x4B, 0x4A);
 
-        private static readonly Color C_BG = Color.FromArgb(0x14, 0x1D, 0x27);
-        private static readonly Color C_TEXT = Color.FromArgb(0xF5, 0xF5, 0xF5);
-        private static readonly Color C_SUBTEXT = Color.FromArgb(0x89, 0x9A, 0xB4);
-        private static readonly Color C_ACCENT = Color.FromArgb(0x2A, 0xAB, 0xEE);
-        private static readonly Color C_SEPARATOR = Color.FromArgb(0x22, 0x2F, 0x3C);
+        private Panel _pnlList = null!;
+        private PictureBox _pbAvatar = null!;
+        private Label _lblName = null!;
+        private Label _lblCount = null!;
+        private Label _lblMembersTitle = null!;
 
-        private Label _lblName;
-        private Label _lblCount;
-        private Label _lblMembersTitle;
-        private PictureBox _pbAvatar;
-        private Panel _pnlList;
-        private CheckBox _chkNotify;
-        private Button _btnAdd;
+        private Button _btnMute = null!;
+        private Button _btnManage = null!;
+        private Button _btnLeave = null!;
+
+        private bool _disableSound;
+        private bool _notificationsMuted;
+        private DateTime? _muteUntilUtc;
 
         public event Action? AddMemberRequested;
-        public event Action<bool>? NotificationsChanged;
 
         public frmGroupInfo()
         {
@@ -52,19 +48,18 @@ namespace SecureChat.Client.Forms.Chat
         {
             Text = "Group Info";
             FormBorderStyle = FormBorderStyle.FixedDialog;
+            StartPosition = FormStartPosition.CenterParent;
             MaximizeBox = false;
             MinimizeBox = false;
             HelpButton = false;
             ControlBox = false;
-            StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(FORM_WIDTH, FORM_HEIGHT);
             BackColor = C_BG;
             Font = new Font("Segoe UI", 10f);
             DoubleBuffered = true;
-            Padding = new Padding(0, 0, 0, 0);
 
             BuildHeader();
-            BuildNotify();
+            BuildActions();
             BuildMembers();
             BuildBottom();
         }
@@ -75,159 +70,129 @@ namespace SecureChat.Client.Forms.Chat
             {
                 Location = new Point(0, 0),
                 Size = new Size(FORM_WIDTH, HEADER_HEIGHT),
-                BackColor = C_BG,
+                BackColor = C_BG
             };
 
-            var lblTitle = new Label
-            {
-                Text = "Group Info",
-                ForeColor = C_TEXT,
-                Font = new Font("Segoe UI Semibold", 12.5f),
-                AutoSize = true,
-                Location = new Point(SECTION_PAD, SECTION_PAD),
-                BackColor = Color.Transparent,
-            };
-
-            var btnMore = FlatIconButton(GLYPH_MORE, "Segoe MDL2 Assets", 14f);
-            btnMore.Location = new Point(FORM_WIDTH - SECTION_PAD - btnMore.Width - 32, SECTION_PAD - 2);
-
-            // Close button
-            var btnClose = FlatIconButton("×", "Segoe UI", 12.5f);
-            btnClose.Location = new Point(FORM_WIDTH - SECTION_PAD - btnClose.Width, SECTION_PAD - 2);
+            var btnClose = FlatIconButton("\u2715", "Segoe UI", 12f);
+            btnClose.Location = new Point(FORM_WIDTH - 46, 14);
             btnClose.Click += (_, __) => Close();
 
             _pbAvatar = new PictureBox
             {
-                Size = new Size(84, 84),
-                Location = new Point(SECTION_PAD, 56),
-                BackColor = Color.FromArgb(0xFF, 0x6B, 0x81),
-                SizeMode = PictureBoxSizeMode.Zoom,
+                Size = new Size(96, 96),
+                Location = new Point((FORM_WIDTH - 96) / 2, 34),
+                BackColor = Color.FromArgb(0xF4, 0xA4, 0x44),
+                SizeMode = PictureBoxSizeMode.Zoom
             };
             _pbAvatar.SizeChanged += (_, __) => ClipCircle(_pbAvatar);
             _pbAvatar.Paint += (_, __) => ClipCircle(_pbAvatar);
 
             _lblName = new Label
             {
-                Text = "Group Name",
+                Text = "test",
+                Font = new Font("Segoe UI Semibold", 17f),
                 ForeColor = C_TEXT,
-                Font = new Font("Segoe UI Semibold", 13f),
-                AutoSize = true,
-                Location = new Point(SECTION_PAD + 96, 62),
-                BackColor = Color.Transparent,
+                AutoSize = false,
+                Size = new Size(FORM_WIDTH, 36),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location = new Point(0, 136),
+                BackColor = Color.Transparent
             };
 
             _lblCount = new Label
             {
-                Text = "0 members",
+                Text = "2 members",
+                Font = new Font("Segoe UI", 11f),
                 ForeColor = C_SUBTEXT,
-                Font = new Font("Segoe UI", 10.5f),
-                AutoSize = true,
-                Location = new Point(SECTION_PAD + 96, 92),
-                BackColor = Color.Transparent,
+                AutoSize = false,
+                Size = new Size(FORM_WIDTH, 28),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Location = new Point(0, 166),
+                BackColor = Color.Transparent
             };
 
-            var sep = Separator(HEADER_HEIGHT - 6);
-
-            pnl.Controls.AddRange(new Control[] { lblTitle, btnMore, btnClose, _pbAvatar, _lblName, _lblCount, sep });
+            pnl.Controls.AddRange(new Control[] { btnClose, _pbAvatar, _lblName, _lblCount });
             Controls.Add(pnl);
         }
 
-        private void BuildNotify()
+        private void BuildActions()
         {
-            Controls.Add(Separator(HEADER_HEIGHT - 2));
-
             var pnl = new Panel
             {
                 Location = new Point(0, HEADER_HEIGHT),
-                Size = new Size(FORM_WIDTH, NOTIFY_HEIGHT),
-                BackColor = C_BG,
+                Size = new Size(FORM_WIDTH, ACTIONS_HEIGHT),
+                BackColor = C_BG
             };
 
-            var icon = new Label
-            {
-                Text = GLYPH_BELL,
-                ForeColor = C_TEXT,
-                AutoSize = false,
-                Size = new Size(32, 32),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Location = new Point(SECTION_PAD + 2, 12),
-                Font = new Font("Segoe MDL2 Assets", 16f),
-                BackColor = Color.Transparent,
-            };
+            _btnMute = BuildActionCard("\U0001F514", "Mute");
+            _btnManage = BuildActionCard("\u2699\uFE0F", "Manage");
+            _btnLeave = BuildActionCard("\u21AA\uFE0F", "Leave", C_DANGER);
 
-            var lbl = new Label
-            {
-                Text = "Notifications",
-                ForeColor = C_TEXT,
-                Font = new Font("Segoe UI", 11f),
-                AutoSize = true,
-                Location = new Point(SECTION_PAD + 42, 16),
-                BackColor = Color.Transparent,
-            };
+            _btnMute.Click += (_, __) => OpenMuteNotifications();
+            _btnManage.Click += (_, __) => OpenEditGroup();
+            _btnLeave.Click += (_, __) => OpenLeaveGroup();
 
-            _chkNotify = new CheckBox
-            {
-                Appearance = Appearance.Button,
-                AutoSize = false,
-                Size = new Size(50, 26),
-                Location = new Point(FORM_WIDTH - SECTION_PAD - 50, 14),
-                BackColor = Color.Transparent,
-                Checked = true,
-            };
-            _chkNotify.Paint += TogglePaint;
-            _chkNotify.CheckedChanged += (_, __) =>
-            {
-                _chkNotify.Invalidate();
-                NotificationsChanged?.Invoke(_chkNotify.Checked);
-            };
+            int cardW = 112;
+            int gap = 12;
+            int total = cardW * 3 + gap * 2;
+            int startX = (FORM_WIDTH - total) / 2;
 
-            pnl.Controls.AddRange(new Control[] { icon, lbl, _chkNotify });
+            _btnMute.Location = new Point(startX, 12);
+            _btnManage.Location = new Point(startX + cardW + gap, 12);
+            _btnLeave.Location = new Point(startX + (cardW + gap) * 2, 12);
+
+            pnl.Controls.AddRange(new Control[] { _btnMute, _btnManage, _btnLeave });
             Controls.Add(pnl);
-
-            Controls.Add(Separator(HEADER_HEIGHT + NOTIFY_HEIGHT - 2));
+            Controls.Add(Separator(HEADER_HEIGHT + ACTIONS_HEIGHT - 1));
         }
 
         private void BuildMembers()
         {
-            _lblMembersTitle = new Label
+            int top = HEADER_HEIGHT + ACTIONS_HEIGHT;
+
+            var header = new Panel
             {
-                Text = "MEMBERS",
-                ForeColor = C_TEXT,
-                Font = new Font("Segoe UI Semibold", 10.5f),
-                AutoSize = true,
-                Location = new Point(SECTION_PAD + 36, HEADER_HEIGHT + NOTIFY_HEIGHT + 10),
-                BackColor = Color.Transparent,
+                Location = new Point(0, top),
+                Size = new Size(FORM_WIDTH, MEMBERS_HEADER_HEIGHT),
+                BackColor = C_BG
             };
 
             var icon = new Label
             {
-                Text = GLYPH_PEOPLE,
-                AutoSize = false,
-                Size = new Size(24, 24),
-                ForeColor = C_TEXT,
+                Text = "\U0001F465",
+                Font = new Font("Segoe UI Emoji", 14f),
+                Size = new Size(28, 28),
+                Location = new Point(SECTION_PAD, 10),
                 TextAlign = ContentAlignment.MiddleCenter,
-                Location = new Point(SECTION_PAD + 4, HEADER_HEIGHT + NOTIFY_HEIGHT + 8),
-                Font = new Font("Segoe MDL2 Assets", 14f),
-                BackColor = Color.Transparent,
+                BackColor = Color.Transparent
             };
 
-            _btnAdd = FlatIconButton(GLYPH_ADD, "Segoe MDL2 Assets", 14f);
-            _btnAdd.Location = new Point(FORM_WIDTH - SECTION_PAD - _btnAdd.Width - 6, HEADER_HEIGHT + NOTIFY_HEIGHT + 6);
-            _btnAdd.Click += (_, __) => AddMemberRequested?.Invoke();
+            _lblMembersTitle = new Label
+            {
+                Text = "2 MEMBERS",
+                Font = new Font("Segoe UI Semibold", 11f),
+                ForeColor = C_TEXT,
+                AutoSize = true,
+                Location = new Point(SECTION_PAD + 34, 14),
+                BackColor = Color.Transparent
+            };
 
-            Controls.AddRange(new Control[] { icon, _lblMembersTitle, _btnAdd });
-            Controls.Add(Separator(HEADER_HEIGHT + NOTIFY_HEIGHT + MEMBERS_HEADER_HEIGHT));
+            var btnAdd = FlatIconButton("\u2795", "Segoe UI Emoji", 12f);
+            btnAdd.Location = new Point(FORM_WIDTH - 44, 8);
+            btnAdd.Click += (_, __) => AddMemberRequested?.Invoke();
+
+            header.Controls.AddRange(new Control[] { icon, _lblMembersTitle, btnAdd });
+            Controls.Add(header);
+            Controls.Add(Separator(top + MEMBERS_HEADER_HEIGHT - 1));
 
             _pnlList = new Panel
             {
-                Location = new Point(0, ListTop),
-                Size = new Size(FORM_WIDTH, FORM_HEIGHT - ListTop - BOTTOM_HEIGHT),
+                Location = new Point(0, top + MEMBERS_HEADER_HEIGHT),
+                Size = new Size(FORM_WIDTH, FORM_HEIGHT - (top + MEMBERS_HEADER_HEIGHT) - BOTTOM_HEIGHT),
                 AutoScroll = true,
-                BackColor = C_BG,
-                Padding = new Padding(0, 0, 0, 8),
+                BackColor = C_BG
             };
             _pnlList.SizeChanged += (_, __) => LayoutMemberItems();
-
             Controls.Add(_pnlList);
         }
 
@@ -237,32 +202,114 @@ namespace SecureChat.Client.Forms.Chat
             {
                 Dock = DockStyle.Bottom,
                 Height = BOTTOM_HEIGHT,
-                BackColor = C_BG,
+                BackColor = C_BG
             };
-            var sep = new Panel { Dock = DockStyle.Top, Height = 1, BackColor = C_SEPARATOR };
-            pnl.Controls.Add(sep);
             Controls.Add(pnl);
+        }
+
+        private Button BuildActionCard(string emoji, string title, Color? titleColor = null)
+        {
+            var b = new Button
+            {
+                Size = new Size(112, 70),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(0xF7, 0xF9, 0xFB),
+                ForeColor = titleColor ?? C_TEXT,
+                Font = new Font("Segoe UI Emoji", 10.8f),
+                Text = $"{emoji}\n{title}",
+                TextAlign = ContentAlignment.MiddleCenter,
+                Cursor = Cursors.Hand,
+                UseCompatibleTextRendering = true,
+                TabStop = false
+            };
+            b.FlatAppearance.BorderSize = 0;
+            b.FlatAppearance.MouseOverBackColor = Color.FromArgb(0xEF, 0xF3, 0xF8);
+            b.FlatAppearance.MouseDownBackColor = Color.FromArgb(0xE8, 0xEE, 0xF6);
+            return b;
+        }
+
+        private static Button FlatIconButton(string text, string fontFamily, float size)
+        {
+            var b = new Button
+            {
+                Text = text,
+                Size = new Size(30, 30),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.Transparent,
+                ForeColor = Color.FromArgb(0x2D, 0x3B, 0x4E),
+                Font = new Font(fontFamily, size, FontStyle.Regular),
+                Cursor = Cursors.Hand,
+                TabStop = false,
+                UseCompatibleTextRendering = true
+            };
+            b.FlatAppearance.BorderSize = 0;
+            b.FlatAppearance.MouseOverBackColor = Color.FromArgb(0xF0, 0xF4, 0xF8);
+            b.FlatAppearance.MouseDownBackColor = Color.FromArgb(0xE8, 0xEE, 0xF5);
+            return b;
+        }
+
+        private static Panel Separator(int top)
+        {
+            return new Panel
+            {
+                Location = new Point(0, top),
+                Size = new Size(FORM_WIDTH, 1),
+                BackColor = C_SEPARATOR
+            };
+        }
+
+        private static void ClipCircle(PictureBox pb)
+        {
+            using var path = new GraphicsPath();
+            path.AddEllipse(0, 0, pb.Width, pb.Height);
+            pb.Region = new Region(path);
+        }
+
+        private void OpenMuteNotifications()
+        {
+            using var f = new frmMuteNotifications(_disableSound, _notificationsMuted, _muteUntilUtc);
+            if (f.ShowDialog(this) != DialogResult.OK) return;
+
+            _disableSound = f.DisableSound;
+            _notificationsMuted = f.IsMuted;
+            _muteUntilUtc = f.MuteUntilUtc;
+        }
+
+        private void OpenEditGroup()
+        {
+            using var f = new frmEditGroup(_lblName.Text);
+            if (f.ShowDialog(this) != DialogResult.OK) return;
+
+            _lblName.Text = f.GroupName;
+        }
+
+        private void OpenLeaveGroup()
+        {
+            using var f = new frmLeaveGroup(_lblName.Text, "Duck Cyber");
+            if (f.ShowDialog(this) != DialogResult.OK) return;
+
+            if (f.LeaveConfirmed)
+                Close();
         }
 
         private void LoadSample()
         {
             var members = new List<MemberModel>
             {
-                new("Ho\u00E0ng Hi\u1EBFu", "online", "owner", null, Color.FromArgb(0xE5,0x7E,0x25)),
-                new("Phi V\u00E2n", "last seen a long time ago", string.Empty, null, Color.FromArgb(0x5A,0xC7,0x67)),
-                new("Ph\u00FAc", "last seen a long time ago", string.Empty, null, Color.FromArgb(0xFF,0x6B,0x81)),
+                new("Hoang Hieu", "online", "owner", null, Color.FromArgb(0xF3,0x7A,0x5A)),
+                new("Duck Cyber", "last seen recently", string.Empty, null, Color.FromArgb(0x5C,0xA5,0xEC)),
             };
-            LoadGroup("hello", null, members);
+            LoadGroup("test", null, members);
         }
 
-        public void LoadGroup(string name, Image? avatar, IReadOnlyList<MemberModel> members, bool notifyOn = true)
+        public void LoadGroup(string name, Image? avatar, IReadOnlyList<MemberModel> members)
         {
             _lblName.Text = name;
             _lblCount.Text = $"{members.Count} members";
             _lblMembersTitle.Text = $"{members.Count} MEMBERS";
+
             _pbAvatar.Image = avatar;
-            _pbAvatar.BackColor = avatar == null ? Color.FromArgb(0xFF, 0x6B, 0x81) : Color.Transparent;
-            _chkNotify.Checked = notifyOn;
+            _pbAvatar.BackColor = avatar == null ? Color.FromArgb(0xF4, 0xA4, 0x44) : Color.Transparent;
 
             _pnlList.SuspendLayout();
             _pnlList.Controls.Clear();
@@ -274,6 +321,7 @@ namespace SecureChat.Client.Forms.Chat
                     Dock = DockStyle.None,
                     Margin = Padding.Empty,
                     Location = new Point(SECTION_PAD, y),
+                    BackColor = Color.Transparent
                 };
                 item.DisplayName = m.Name;
                 item.Status = m.Status;
@@ -281,7 +329,6 @@ namespace SecureChat.Client.Forms.Chat
                 item.AvatarImage = m.Avatar;
                 item.AvatarColor = m.AvatarColor;
                 item.SetInitial(m.Name.Length > 0 ? m.Name.Substring(0, 1).ToUpperInvariant() : "?");
-
                 _pnlList.Controls.Add(item);
                 y += item.Height;
             }
@@ -302,60 +349,6 @@ namespace SecureChat.Client.Forms.Chat
                     item.Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top;
                 }
             }
-        }
-
-        private static Panel Separator(int top)
-        {
-            return new Panel
-            {
-                Location = new Point(0, top),
-                Size = new Size(FORM_WIDTH, 1),
-                BackColor = C_SEPARATOR,
-            };
-        }
-
-        private static Button FlatIconButton(string text, string fontFamily = "Segoe UI", float size = 12f)
-        {
-            var b = new Button
-            {
-                Text = text,
-                Size = new Size(32, 30),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.Transparent,
-                ForeColor = C_TEXT,
-                Font = new Font(fontFamily, size, FontStyle.Bold),
-                TabStop = false,
-                Cursor = Cursors.Hand,
-                UseCompatibleTextRendering = true,
-            };
-            b.FlatAppearance.BorderSize = 0;
-            b.FlatAppearance.MouseOverBackColor = Color.FromArgb(18, 255, 255, 255);
-            b.FlatAppearance.MouseDownBackColor = Color.FromArgb(30, 255, 255, 255);
-            return b;
-        }
-
-        private static void ClipCircle(PictureBox pb)
-        {
-            using var path = new GraphicsPath();
-            path.AddEllipse(0, 0, pb.Width, pb.Height);
-            pb.Region = new Region(path);
-        }
-
-        private void TogglePaint(object sender, PaintEventArgs e)
-        {
-            var chk = (CheckBox)sender;
-            var g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            var rect = new Rectangle(0, 0, chk.Width - 1, chk.Height - 1);
-            int r = rect.Height / 2;
-            using var track = new SolidBrush(chk.Checked ? C_ACCENT : Color.FromArgb(0x55, 0x65, 0x78));
-            using var thumb = new SolidBrush(Color.White);
-            g.FillEllipse(track, rect.Left, rect.Top, rect.Height, rect.Height);
-            g.FillEllipse(track, rect.Right - rect.Height, rect.Top, rect.Height, rect.Height);
-            g.FillRectangle(track, rect.Left + r, rect.Top, rect.Width - rect.Height, rect.Height);
-
-            int thumbX = chk.Checked ? rect.Right - rect.Height + 2 : rect.Left + 2;
-            g.FillEllipse(thumb, thumbX, rect.Top + 2, rect.Height - 4, rect.Height - 4);
         }
     }
 
