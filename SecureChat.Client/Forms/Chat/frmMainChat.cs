@@ -75,8 +75,25 @@ namespace SecureChat.Client
         public frmMainChat()
         {
             InitUI();
+
+            // Bật cho Form chính
+            this.DoubleBuffered = true;
+
+            // Bật cho các Panel bị nháy
+            EnableDoubleBuffering(_pnlChat);
+            EnableDoubleBuffering(_pnlConvList);
+            EnableDoubleBuffering(_pnlSidebar);
         }
 
+        // Hàm tiện ích dùng Reflection để ép bật DoubleBuffered cho Panel
+        private void EnableDoubleBuffering(Control control)
+        {
+            typeof(Control).InvokeMember("DoubleBuffered",
+                System.Reflection.BindingFlags.SetProperty |
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.NonPublic,
+                null, control, new object[] { true });
+        }
         // ════════════════════════════════════════════
         //  INIT
         // ════════════════════════════════════════════
@@ -1315,6 +1332,9 @@ namespace SecureChat.Client
 
         private void BuildMessages()
         {
+            // 1. CHÈN VÀO ĐÂY: Tạm dừng vẽ để tránh "nháy" khi xóa/thêm hàng loạt control
+            _pnlMessages.SuspendLayout();
+
             _pnlMessages.Controls.Clear();
             _pnlMessages.Invalidate();
 
@@ -1350,7 +1370,10 @@ namespace SecureChat.Client
                 y += bubble.Height + 4;
             }
 
-            // Scroll to the last message reliably
+            // 2.Sau khi đã thêm xong hết, cho phép vẽ lại một lần duy nhất
+            _pnlMessages.ResumeLayout(true);
+
+            // 3. Cuối cùng mới cuộn 
             if (bubbles.Count > 0)
                 _pnlMessages.ScrollControlIntoView(bubbles[^1]);
         }
@@ -1358,14 +1381,14 @@ namespace SecureChat.Client
         private Panel BuildBubble(string text, bool isOut, string time)
         {
             var pnl = new Panel { BackColor = Color.Transparent };
-            int pad = 12;
+            int pad = 12; // Padding (khoảng cách lề) bên trong bubble.
 
-            // Compute max width as ~66% of messages panel width (fallback to 360)
-            int maxW = 360;
+            int maxW = 360; // // Mặc định rộng 360px
             if (_pnlMessages != null && _pnlMessages.ClientSize.Width > 0)
+                // Tính maxW bằng 66% chiều rộng khung chat để tin nhắn không kéo dài hết màn hình.
                 maxW = Math.Max(220, (int)(_pnlMessages.ClientSize.Width * 0.66f) - _pnlMessages.Padding.Horizontal);
 
-            // Measure text on the messages surface for consistent metrics
+            // Đo kích thước thực tế của text khi hiển thị với font và chiều rộng giới hạn.
             SizeF sz;
             using (var g = _pnlMessages.CreateGraphics())
             {
@@ -1379,17 +1402,22 @@ namespace SecureChat.Client
             */
 
             // --- PHẦN TÍNH TOÁN LẠI ---
-            int statusHeight = 16; // Khoảng trống cho cụm thời gian và tick
-            int bw = Math.Min(maxW, Math.Max((int)sz.Width + pad * 2 + 10, 100)); // Tăng min width một chút
-            int bh = (int)sz.Height + pad * 2 + statusHeight; // CỘNG THÊM statusHeight vào chiều cao bubble
+            int statusHeight = 16; // Chừa khoảng trống cho dòng thời gian và tick
+            int bw = Math.Min(maxW, Math.Max((int)sz.Width + pad * 2 + 10, 100)); // // Tính chiều rộng bubble
+            int bh = (int)sz.Height + pad * 2 + statusHeight; // Chiều cao bubble = chiều cao chữ + padding + phần status.
             pnl.Height = bh + 16; // Tăng chiều cao Panel bao ngoài
+
 
             pnl.Paint += (s, e) =>
             {
+
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
                 // --- THÊM DÒNG NÀY ĐỂ KHỬ RĂNG CƯA CHỮ ---
-                e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                //e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                // Thay đổi dòng này:
+                e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+
 
                 int x = isOut ? pnl.ClientSize.Width - bw - 10 : 10;
                 int y = 4;
@@ -1418,22 +1446,6 @@ namespace SecureChat.Client
                     e.Graphics.FillPolygon(new SolidBrush(bg), tail);
                 }
 
-                /*
-                // Text
-                e.Graphics.DrawString(text, TG.FontRegular(9.5f), new SolidBrush(TG.TextPrimary),
-                    new RectangleF(x + pad, y + pad, bw - pad * 2, sz.Height + 4));
-
-                // Time
-                var timeSz = e.Graphics.MeasureString(time, TG.FontRegular(7.5f));
-                float tx = x + bw - timeSz.Width - pad;
-                float ty = y + bh - timeSz.Height - 4;
-                e.Graphics.DrawString(time, TG.FontRegular(7.5f), new SolidBrush(TG.TextTime), tx, ty);
-
-                // Ticks for outgoing
-                if (isOut)
-                    e.Graphics.DrawString("✓✓", TG.FontRegular(7.5f), new SolidBrush(TG.Blue), tx - 18, ty);
-                */
-
 
                 // Text: Khống chế chiều cao vẽ chữ để không đè lên status
                 var textRect = new RectangleF(x + pad, y + pad, bw - pad * 2, sz.Height);
@@ -1443,7 +1455,7 @@ namespace SecureChat.Client
                 var timeSz = e.Graphics.MeasureString(time, TG.FontRegular(7.5f));
 
                 // Đẩy tx sang trái thêm một chút nếu là tin nhắn gửi đi để dành chỗ cho Tick
-                float tx = x + bw - timeSz.Width - pad - (isOut ? 20 : 0);
+                float tx = x + bw - timeSz.Width - pad - (isOut ? 26 : 0);
                 float ty = y + bh - timeSz.Height - 6; // Cách đáy bubble 6px
 
 
@@ -1451,14 +1463,25 @@ namespace SecureChat.Client
                 e.Graphics.DrawString(time, TG.FontRegular(7.5f), new SolidBrush(TG.TextTime), tx, ty);
 
                 // Ticks: Căn chỉnh lại để "✓✓" nằm ngay ngắn trước thời gian
+                /*
                 if (isOut)
                 {
                     // Vẽ icon check cách thời gian 2px về bên phải (hoặc bên trái tùy bạn)
                     // Ở đây mình vẽ sau thời gian cho giống Telegram hiện đại
-                    float tickX = x + bw - pad - 16;
+                    float tickX = x + bw - pad - 22;
                     e.Graphics.DrawString("✓✓", TG.FontRegular(8f), new SolidBrush(TG.Blue), tickX, ty - 1);
                 }
+                */
+                // Thay đổi dòng vẽ tick của bạn:
+                if (isOut)
+                {
+                    float tickX = x + bw - pad - 22;
+                    // Thử dùng Segoe UI Symbol và FontStyle.Bold
+                    using var tickFont = new Font("Segoe UI Symbol", 8f, FontStyle.Bold);
+                    e.Graphics.DrawString("✓✓", tickFont, new SolidBrush(TG.Blue), tickX, ty - 1);
+                }
             };
+
 
             // Context menu
             var ctx = new ContextMenuStrip();
@@ -1563,5 +1586,18 @@ namespace SecureChat.Client
                 return null;
             }
         }
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams cp = base.CreateParams;
+                // Bật WS_EX_COMPOSITED (0x02000000)
+                // Ép toàn bộ control trên form phải vẽ bằng Double Buffer
+                cp.ExStyle |= 0x02000000;
+                return cp;
+            }
+        }
+
     }
 }
