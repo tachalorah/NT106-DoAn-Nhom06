@@ -6,19 +6,13 @@ namespace SecureChat.Models
 	[Table("Friends")]
 	public class Friend
 	{
-		[Key]
-		[Column("friendship_id")]
-		[MaxLength(8)]
+		[Key, Column("friendship_id"), MaxLength(8)]
 		public string FriendshipID { get; set; } = "";
 
-		[Required]
-		[Column("user_a_id")]
-		[MaxLength(8)]
+		[Required, Column("user_a_id"), MaxLength(8)]
 		public string UserAID { get; set; } = "";
 
-		[Required]
-		[Column("user_b_id")]
-		[MaxLength(8)]
+		[Required, Column("user_b_id"), MaxLength(8)]
 		public string UserBID { get; set; } = "";
 
 		[Column("created_at")]
@@ -34,19 +28,13 @@ namespace SecureChat.Models
 	[Table("FriendRequests")]
 	public class FriendRequest
 	{
-		[Key]
-		[Column("request_id")]
-		[MaxLength(8)]
+		[Key, Column("request_id"), MaxLength(8)]
 		public string RequestID { get; set; } = "";
 
-		[Required]
-		[Column("sender_id")]
-		[MaxLength(8)]
+		[Required, Column("sender_id"), MaxLength(8)]
 		public string SenderID { get; set; } = "";
 
-		[Required]
-		[Column("recipient_id")]
-		[MaxLength(8)]
+		[Required, Column("recipient_id"), MaxLength(8)]
 		public string RecipientID { get; set; } = "";
 
 		[Column("status")]
@@ -68,26 +56,19 @@ namespace SecureChat.Models
 	[Table("BlockedUsers")]
 	public class BlockedUser
 	{
-		[Key]
-		[Column("block_id")]
-		[MaxLength(8)]
+		[Key, Column("block_id"), MaxLength(8)]
 		public string BlockID { get; set; } = "";
 
-		[Required]
-		[Column("blocker_id")]
-		[MaxLength(8)]
+		[Required, Column("blocker_id"), MaxLength(8)]
 		public string BlockerID { get; set; } = "";
 
-		[Required]
-		[Column("blocked_id")]
-		[MaxLength(8)]
+		[Required, Column("blocked_id"), MaxLength(8)]
 		public string BlockedID { get; set; } = "";
 
 		[Column("created_at")]
 		public DateTime CreatedAt { get; set; }
 
-		[ForeignKey(nameof(BlockerID))]
-		[InverseProperty(nameof(User.BlockedUsers))]
+		[ForeignKey(nameof(BlockerID)), InverseProperty(nameof(User.BlockedUsers))]
 		public User Blocker { get; set; } = null!;
 
 		[ForeignKey(nameof(BlockedID))]

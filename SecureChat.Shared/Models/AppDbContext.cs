@@ -27,6 +27,7 @@ namespace SecureChat.Models
 			ConfigureRelationships(modelBuilder);
 			ConfigureUniqueIndexes(modelBuilder);
 			ConfigureNonUniqueIndexes(modelBuilder);
+			ConfigureDefaultValues(modelBuilder);
 		}
 
 		private static void ConfigureRelationships(ModelBuilder m)
@@ -42,6 +43,7 @@ namespace SecureChat.Models
 				.WithMany(u => u.FriendshipsB)
 				.HasForeignKey(f => f.UserBID)
 				.OnDelete(DeleteBehavior.Cascade);
+
 
 			m.Entity<Friend>()
         			.ToTable(t => t.HasCheckConstraint(
@@ -72,7 +74,7 @@ namespace SecureChat.Models
 				.HasForeignKey(r => r.BlockedID)
 				.OnDelete(DeleteBehavior.Cascade);
 
-			m.Entity<Conversation>()
+				m.Entity<Conversation>()
 				.HasOne(c => c.Creator)
 				.WithMany()
 				.HasForeignKey(c => c.CreatedBy)
@@ -166,7 +168,6 @@ namespace SecureChat.Models
 				.HasForeignKey(r => r.MemberID)
 				.OnDelete(DeleteBehavior.Cascade);
 
-			
 			m.Entity<MessageStatus>()
 				.HasOne(s => s.Message)
 				.WithMany()
@@ -198,9 +199,9 @@ namespace SecureChat.Models
 				.OnDelete(DeleteBehavior.Cascade);
  
 			m.Entity<CallLog>()
-				.HasOne(c => c.Caller)
+				.HasOne(c => c.StartedByMember)
 				.WithMany()
-				.HasForeignKey(c => c.CallerID)
+				.HasForeignKey(c => c.StartedBy)
 				.OnDelete(DeleteBehavior.Cascade);
 
 			m.Entity<CallParticipant>()
@@ -211,7 +212,7 @@ namespace SecureChat.Models
 
 			m.Entity<CallParticipant>()
 				.HasOne(cp => cp.Member)
-				.WithMany()
+				.WithMany(cm => cm.CallsJoined)
 				.HasForeignKey(cp => cp.ParticipantID)
 				.OnDelete(DeleteBehavior.Cascade);
 		}
@@ -229,7 +230,7 @@ namespace SecureChat.Models
 				.HasDatabaseName("uq_users_email");
  
 			m.Entity<UserSession>()
-				.HasIndex(s => s.RefreshToken)
+				.HasIndex(s => new { s.RefreshToken })
 				.IsUnique()
 				.HasDatabaseName("uq_sessions_refresh_token");
  
@@ -270,6 +271,7 @@ namespace SecureChat.Models
 				.HasIndex(a => a.FileHash)
 				.HasDatabaseName("idx_attachments_hash");
  
+			// Sắp xếp giảm dần theo last_activity_at (DESC)
 			m.Entity<Conversation>()
 				.HasIndex(c => c.LastActivityAt)
 				.IsDescending(true)
@@ -291,6 +293,7 @@ namespace SecureChat.Models
 				.HasIndex(mm => mm.MemberID)
 				.HasDatabaseName("idx_mentions_user");
  
+			// (conversation_id ASC, sent_at DESC)
 			m.Entity<Message>()
 				.HasIndex(msg => new { msg.ConversationID, msg.SentAt })
 				.IsDescending(false, true)
@@ -324,5 +327,65 @@ namespace SecureChat.Models
 				.HasIndex(p => p.ConversationID)
 				.HasDatabaseName("idx_message_pins_conv");
 		}
+
+		private static void ConfigureDefaultValues(ModelBuilder m)
+		{
+			m.Entity<User>()
+				.Property(u => u.CreatedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<User>()
+				.Property(u => u.UpdatedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<UserSession>()
+				.Property(u => u.CreatedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<UserSession>()
+				.Property(u => u.LastUsedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<Friend>()
+				.Property(u => u.CreatedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<FriendRequest>()
+				.Property(u => u.CreatedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<BlockedUser>()
+				.Property(u => u.CreatedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<Conversation>()
+				.Property(u => u.CreatedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<ConversationMember>()
+				.Property(u => u.JoinedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<Message>()
+				.Property(u => u.SentAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<MessageAttachment>()
+				.Property(u => u.UploadedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<MessagePin>()
+				.Property(u => u.PinnedAt)
+				.HasDefaultValueSql("current_timestamp");
+
+			m.Entity<MessageReaction>()
+				.Property(u => u.CreatedAt)
+				.HasDefaultValueSql("current_timestamp");
+			
+			m.Entity<CallLog>()
+				.Property(u => u.StartedAt)
+				.HasDefaultValueSql("current_timestamp");
+		}
+
 	}
 }

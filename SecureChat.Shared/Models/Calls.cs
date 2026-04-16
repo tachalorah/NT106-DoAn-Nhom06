@@ -7,23 +7,20 @@ namespace SecureChat.Models
 	[Table("CallLogs")]
 	public class CallLog
 	{
-		[Key, MaxLength(8)]
-		[Column("call_id")]
+		[Key, MaxLength(8), Column("call_id")]
 		public string CallID { get; set; } = "";
 
-		[Required, MaxLength(8)]
-		[Column("conversation_id")]
+		[Required, MaxLength(8), Column("conversation_id")]
 		public string ConversationID { get; set; } = "";
-
-		[Required, MaxLength(8)]
-		[Column("caller_id")]
-		public string CallerID { get; set; } = "";
 
 		[Column("call_type")]
 		public CallType Type { get; set; } = CallType.Voice;
 
 		[Column("status")]
 		public CallStatus Status { get; set; } = CallStatus.Ringing;
+
+		[Required, MaxLength(8), Column("started_by")]
+		public string StartedBy { get; set; } = "";
 
 		[Column("started_at")]
 		public DateTime StartedAt { get; set; }
@@ -34,8 +31,8 @@ namespace SecureChat.Models
 		[ForeignKey(nameof(ConversationID))]
 		public Conversation Conversation { get; set; } = null!;
 
-		[ForeignKey(nameof(CallerID))]
-		public ConversationMember Caller { get; set; } = null!;
+		[ForeignKey(nameof(StartedBy))]
+		public ConversationMember StartedByMember { get; set; } = null!;
 
 		[InverseProperty(nameof(CallParticipant.Call))]
 		public ICollection<CallParticipant> Participants { get; set; } = [];
@@ -45,14 +42,10 @@ namespace SecureChat.Models
 	[PrimaryKey(nameof(ParticipantID), nameof(CallID))]
 	public class CallParticipant
 	{
-		[Key]
-		[Column("participant_id")]
-		[MaxLength(8)]
+		[Key, Column("participant_id"), MaxLength(8)]
 		public string ParticipantID { get; set; } = "";
 
-		[Required]
-		[Column("call_id")]
-		[MaxLength(8)]
+		[Required, Column("call_id"), MaxLength(8)]
 		public string CallID { get; set; } = "";
 
 		[Column("status")]
