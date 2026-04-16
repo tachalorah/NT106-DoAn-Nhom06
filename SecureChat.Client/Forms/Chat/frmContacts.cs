@@ -179,8 +179,8 @@ namespace SecureChat.Client
             MinimumSize = new Size(360, 560);
             StartPosition = FormStartPosition.CenterParent;
 
-            // FormBorderStyle = FormBorderStyle.FixedSingle; // Viền cố định, không kéo được
-            FormBorderStyle = FormBorderStyle.Sizable; // Cho phép kéo thay đổi kích thước
+            FormBorderStyle = FormBorderStyle.FixedSingle; // Viền cố định, không kéo được
+            // FormBorderStyle = FormBorderStyle.Sizable; // Cho phép kéo thay đổi kích thước
 
             BackColor = Color.White;
             MaximizeBox = false; // chặn nút phóng to

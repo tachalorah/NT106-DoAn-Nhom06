@@ -3,8 +3,10 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+
 using SecureChat.Client.Components.Call;
 using SecureChat.Client.Forms.Call;
+
 using SecureChat.Client.Forms.Settings;
 using SecureChat.Client.Models;
 
@@ -324,6 +326,13 @@ namespace SecureChat.Client
             _logger = logger;
         }
 
+            Application.Run(new frmSettings(fakeProfile));
+            */
+            Application.Run(new frmTwoFA());
+            // Application.Run(new TwoFAForm());
+            // Application.Run(new MainForm());
+            // Application.Run(new frmLoginRegister());
+            // Application.Run(new ForgotPasswordForm());
         public Task StartAsync(CancellationToken cancellationToken = default)
         {
             _logger("FakeAudioHandler.StartAsync");

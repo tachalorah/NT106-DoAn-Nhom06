@@ -193,8 +193,13 @@ namespace SecureChat.Client
                 e.Graphics.FillEllipse(new SolidBrush(_avatarColor == default ? TG.Blue : _avatarColor), rect);
                 string initials = GetInitials(DisplayName);
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-                float fontSize = size * 0.35f;
-                e.Graphics.DrawString(initials, TG.FontSemiBold(fontSize), Brushes.White, rect, sf);
+                float fontSize = size * 0.32f;
+
+                // e.Graphics.DrawString(initials, TG.FontSemiBold(fontSize), Brushes.White, rect, sf);
+                // TẠO RECT RIÊNG CHO CHỮ: Đẩy Y xuống 2 pixel để bù trừ độ lệch của Font
+                RectangleF textRect = new RectangleF(rect.X, rect.Y + 2, rect.Width, rect.Height);
+
+                e.Graphics.DrawString(initials, TG.FontSemiBold(fontSize), Brushes.White, textRect, sf);
             }
 
             if (ShowOnline)
