@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows.Forms;
+using SecureChat.Client.Forms.Chat;
 using SecureChat.Client.Forms.Settings;
 using SecureChat.Client.Models;
 
@@ -23,7 +24,11 @@ namespace SecureChat.Client
 
             Application.Run(new frmSettings(fakeProfile));
             */
-            Application.Run(new frmContacts());
+            Application.Run(new frmTwoFA());
+            // Application.Run(new TwoFAForm());
+            // Application.Run(new MainForm());
+            // Application.Run(new frmLoginRegister());
+            // Application.Run(new ForgotPasswordForm());
 
         }
     }
