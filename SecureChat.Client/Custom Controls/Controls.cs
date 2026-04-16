@@ -194,6 +194,7 @@ namespace SecureChat.Client
                 string initials = GetInitials(DisplayName);
 
                 using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                /*
                 float fontSizee = size * 0.32f;
 
                 // e.Graphics.DrawString(initials, TG.FontSemiBold(fontSize), Brushes.White, rect, sf);
@@ -201,7 +202,7 @@ namespace SecureChat.Client
                 RectangleF textRect = new RectangleF(rect.X, rect.Y + 2, rect.Width, rect.Height);
 
                 e.Graphics.DrawString(initials, TG.FontSemiBold(fontSizee), Brushes.White, textRect, sf);
-
+                */
 
                 // Draw initials as strict single-line text to avoid wrap/clipping artifacts.
                 float fontSize = Math.Max(10f, size * 0.34f);
