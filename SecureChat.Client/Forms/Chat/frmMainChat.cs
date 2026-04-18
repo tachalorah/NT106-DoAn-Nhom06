@@ -4,6 +4,7 @@ using System.Drawing;               // Color, Point, Size, Image, Bitmap
 using System.Drawing.Drawing2D;     // SmoothingMode, LinearGradientBrush
 using System.Drawing.Imaging;       // PixelFormat, ColorMatrix, ImageAttributes
 using System.IO;                    // File, Path, MemoryStream, FileSystemWatcher
+using System.Reflection;
 using System.Threading.Tasks;       // Task.Delay (dùng cho wallpaper reload)
 using System.Windows.Forms;         // Form, Panel, Button, Label, ...
 
@@ -28,7 +29,8 @@ namespace SecureChat.Client
 
         private Panel _pnlChatHeader; // thanh header trên cùng khu chat
 
-        private Panel _pnlMessages; // vùng hiển thị bong bóng tin nhắn
+        //private Panel _pnlMessages; // vùng hiển thị bong bóng tin nhắn
+        private ChatPanel _pnlMessages;
 
         private Panel _pnlInputBar; // thanh nhập tin nhắn bên dưới
         private TelegramTextBox _tbMessage; // TextBox gõ tin nhắn
@@ -55,11 +57,19 @@ namespace SecureChat.Client
 
         private readonly List<(string Id, string Name, string Preview, string Time, int Unread, bool IsGroup)> _convs = new()
         {
+            /*
             ("1", "Telegram",    "Quack Cyber added Sim 18a3",     "10:10 PM", 0,  false),
             ("2", "dk test",     "Quack Cyber: Hello hello hello!", "12:51 PM", 100,  false),
             ("3", "Tuấn Thành",  "Sure",                           "10 Mar",   0,  false),
-        };
+            */
 
+            // Đổi IsGroup từ false → true cho "dk test", và thêm conv nhóm mới
+            ("1", "Telegram",    "Quack Cyber added Sim 18a3",     "10:10 PM", 0,   false),
+            ("2", "NT106 Nhóm 6","Hang Hieu: tui vừa làm với ô đó","8:30 AM",  100,   true),   // ← nhóm
+            ("3", "Tuấn Thành",  "Sure",                           "10 Mar",   0,   false),
+         };
+
+        /*
         private readonly List<(string Text, bool Out, string Time)> _msgs = new()
         {
             ("Hello hello hello!",                                                                      false, "12:51 PM"),
@@ -68,32 +78,90 @@ namespace SecureChat.Client
             ("Tuấn Thành, you've been wonderful friends for so long. I could never imagine you doing this to me.", true, "10:15 PM"),
             ("Search it",                                                                                true,  "10:16 PM"),
         };
+        */
+
+        // Key = convId, Value = danh sách tin nhắn của conversation đó
+        private readonly Dictionary<string, List<(string Text, bool Out, string Time, string Sender)>> _allMsgs = new()
+        {
+            ["1"] = new()
+    {
+        ("Hello hello hello!",                                                                       false, "12:51 PM", "Hang Hieu"),
+        ("Tuấn Thành you've been removed from the group chat",                                       false, "1:01 PM",  "Bot"),
+        ("Quack Cyber added Sim 18a3",                                                               false, "10:10 PM", "Bot"),
+        ("Tuấn Thành, you've been wonderful friends for so long. I could never imagine you doing this to me.", true, "10:15 PM", ""),
+        ("Search it",                                                                                 true,  "10:16 PM", ""),
+    },
+            ["2"] = new()   // group chat NT106
+    {
+        ("ê mấy ông ơi nộp bài chưa",          false, "8:28 AM", "Hang Hieu"),
+        ("chưa ông ơi",                          false, "8:29 AM", "Tuấn Thành"),
+        ("add new contact á",                    false, "8:29 AM", "Hang Hieu"),
+        ("tui vừa làm với ô đó",                 false, "8:30 AM", "Hang Hieu"),
+        ("nó tự chấp nhận kb luôn mà",           true,  "8:30 AM", ""),
+        ("af af",                                false, "8:31 AM", "Hang Hieu"),
+        ("oke chút nữa tui push lên",            true,  "8:32 AM", ""),
+        ("ừ nhanh lên nha còn test",             false, "8:33 AM", "Tuấn Thành"),
+    },
+            ["3"] = new()
+    {
+        ("Hey, lâu rồi không gặp!",              false, "10 Mar", "Tuấn Thành"),
+        ("Ừ, dạo này bận lắm",                   true,  "10 Mar", ""),
+        ("Sure",                                  false, "10 Mar", "Tuấn Thành"),
+    },
+        };
+
+        // Tin nhắn của conversation đang active (để SendMessage biết thêm vào đâu)
+        private List<(string Text, bool Out, string Time, string Sender)> _currentMsgs =>
+            _allMsgs.TryGetValue(_activeConvId, out var list) ? list : new();
 
         private readonly Dictionary<string, bool> _settingsToggles = new(); // công tắc Night mode
-
 
         public frmMainChat()
         {
             InitUI();
 
-            // Bật cho Form chính
+            // 1. Các thiết lập DoubleBuffer hiện tại của bạn
             this.DoubleBuffered = true;
 
-            // Bật cho các Panel bị nháy
-            EnableDoubleBuffering(_pnlChat);
-            EnableDoubleBuffering(_pnlConvList);
-            EnableDoubleBuffering(_pnlSidebar);
+            // 1. Kích hoạt cho Panel chính (Nơi chứa hình nền và tin nhắn)
+            EnableDoubleBuffering(_pnlMessages);
+
+            // 2. Ép vẽ lại toàn bộ khi cuộn để xóa sạch sọc ngang
+            // _pnlMessages.Scroll += (s, e) => _pnlMessages.Invalidate(false); // false = không xóa nền cũ trước khi vẽ lại
+            // _pnlMessages.MouseWheel += (s, e) => _pnlMessages.Invalidate(false);
+
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            if (_pnlMessages != null)
+            {
+                _pnlMessages.SuspendLayout();
+                base.OnResize(e);
+                _pnlMessages.ResumeLayout(false); // false = không force layout ngay
+                BuildMessages();                  // rebuild bubble theo width mới
+            }
+            else
+            {
+                base.OnResize(e);
+            }
         }
 
         // Hàm tiện ích dùng Reflection để ép bật DoubleBuffered cho Panel
         private void EnableDoubleBuffering(Control control)
         {
-            typeof(Control).InvokeMember("DoubleBuffered",
-                System.Reflection.BindingFlags.SetProperty |
-                System.Reflection.BindingFlags.Instance |
-                System.Reflection.BindingFlags.NonPublic,
-                null, control, new object[] { true });
+            var type = typeof(Control);
+            // Bật bộ đệm kép
+            type.InvokeMember("DoubleBuffered", BindingFlags.SetProperty | BindingFlags.Instance | BindingFlags.NonPublic, null, control, new object[] { true });
+
+            // Ép Control vẽ tất cả trong một luồng Paint, tránh vẽ nền riêng lẻ gây nhấp nháy
+            var method = type.GetMethod("SetStyle", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (method != null)
+            {
+                method.Invoke(control, new object[] { ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true });
+            }
         }
+
         // ════════════════════════════════════════════
         //  INIT
         // ════════════════════════════════════════════
@@ -103,7 +171,7 @@ namespace SecureChat.Client
             Size = new Size(1000, 660);
             MinimumSize = new Size(760, 500);
             StartPosition = FormStartPosition.CenterScreen;
-
+            // this.MaximizeBox = false; // Vô hiệu hóa nút phóng to
             FormBorderStyle = FormBorderStyle.FixedSingle;
 
             BackColor = Color.White;
@@ -118,12 +186,20 @@ namespace SecureChat.Client
             Controls.Add(_pnlSidebar);
             Controls.Add(_pnlSettingsMenu);  // add cuối = hiện trên cùng
 
-            Resize += (s, e) => AdjustLayout();
+            Resize += (s, e) =>
+            {
+                AdjustLayout();
+                UpdateCachedBackground(); // Thêm dòng này để ảnh nền co giãn theo Form
+            };
             AdjustLayout();
 
             LoadConversation("1"); // tải cuộc trò chuyện đầu tiên
-            // inside InitUI(), after LoadConversation("1");
-            SetupWallpaperWatcher(); // theo dõi thay đổi ảnh nền
+                                   // inside InitUI(), after LoadConversation("1");
+            SetupWallpaperWatcher(); // 1. Bắt đầu theo dõi thư mục ảnh
+
+            // 2. Nạp hình nền lần đầu tiên
+            // Nên để sau AdjustLayout để _pnlChat và _pnlMessages đã có kích thước chuẩn
+            UpdateCachedBackground();
         }
 
         private void AdjustLayout()
@@ -237,6 +313,7 @@ namespace SecureChat.Client
             foreach (var c in _convs)
             {
                 var row = BuildConvRow(c.Id, c.Name, c.Preview, c.Time, c.Unread, c.IsGroup);
+                EnableDoubleBuffering(row); // <--- QUAN TRỌNG: 
                 row.Location = new Point(0, y);
                 row.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
                 row.Width = _pnlConvList.ClientSize.Width;
@@ -256,6 +333,7 @@ namespace SecureChat.Client
 
             // Avatar
             var avatar = new AvatarControl { Size = new Size(48, 48), Location = new Point(10, 10) };
+            EnableDoubleBuffering(avatar); // <--- QUAN TRỌNG: Control tự vẽ rất cần cái này
             avatar.SetName(name);
             avatar.ShowOnline = false; // nếu có thì có chấm xanh nhỏ ở dưới phải avatar
 
@@ -492,17 +570,19 @@ namespace SecureChat.Client
 
 
             // ── Messages area  - Vùng hiển thị tin nhắn ─────────────────────────
-            _pnlMessages = new Panel
+            _pnlMessages = new ChatPanel
             {
                 Dock = DockStyle.Fill, // chiếm trọn phần diện tích còn lại
                 AutoScroll = true,
                 Padding = new Padding(12, 8, 12, 8),
+                BackColor = Color.FromArgb(0xDB, 0xE8, 0xD5), // Thêm dòng này
             };
+
 
             typeof(Panel).InvokeMember("DoubleBuffered",
             System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
             null, _pnlMessages, new object[] { true });
-            _pnlMessages.Paint += PaintChatBackground;
+            // _pnlMessages.Paint += PaintChatBackground;
             // Click vào vùng chat → đóng settings menu
             _pnlMessages.Click += (s, e) => { if (_settingsVisible) HideSettingsMenu(); };
 
@@ -513,7 +593,8 @@ namespace SecureChat.Client
             _pnlChat.Controls.Add(_pnlInputBar);
             _pnlChat.Controls.Add(_pnlChatHeader);
 
-            _pnlMessages.Resize += (s, e) => _pnlMessages.Invalidate();
+            // _pnlMessages.Resize += (s, e) => _pnlMessages.Invalidate(); // bỏ vì đã có PaintChatBackground tự xử lý.
+            _pnlMessages.Resize += (s, e) => UpdateCachedBackground();
         }
 
         private void EnsureChatMoreMenu()
@@ -737,7 +818,7 @@ namespace SecureChat.Client
             for (var i = 0; i < dlg.PollOptions.Count; i++)
                 pollText += $"\n{i + 1}. {dlg.PollOptions[i]}";
 
-            _msgs.Add((pollText, true, DateTime.Now.ToString("h:mm tt")));
+            _currentMsgs.Add((pollText, true, DateTime.Now.ToString("h:mm tt"), ""));
             BuildMessages();
         }
 
@@ -747,7 +828,7 @@ namespace SecureChat.Client
             if (dlg.ShowDialog(this) != DialogResult.OK || !dlg.DeleteConfirmed)
                 return;
 
-            _msgs.Clear();
+            _currentMsgs.Clear();
             BuildMessages();
         }
 
@@ -758,7 +839,7 @@ namespace SecureChat.Client
             if (dlg.ShowDialog(this) != DialogResult.OK || !dlg.LeaveConfirmed)
                 return;
 
-            _msgs.Clear();
+            _currentMsgs.Clear();
             BuildMessages();
             _lblChatStatus.Text = $"You left this group · New owner: {dlg.AppointedAdminName}";
         }
@@ -775,12 +856,12 @@ namespace SecureChat.Client
 
             string imagesDir = Path.Combine(Application.StartupPath, "Resources", "Images");
             string[] candidates = {
-        Path.Combine(imagesDir, "chat_bg.jpg"),
-        Path.Combine(imagesDir, "chat_bg.png"),
-        Path.Combine(imagesDir, "wallpaper.jpg"),
-        Path.Combine(imagesDir, "wallpaper.png"),
-        Path.Combine(imagesDir, "background.jpg"),
-        Path.Combine(imagesDir, "background.png"),
+            Path.Combine(imagesDir, "chat_bg.jpg"),
+            Path.Combine(imagesDir, "chat_bg.png"),
+            Path.Combine(imagesDir, "wallpaper.jpg"),
+            Path.Combine(imagesDir, "wallpaper.png"),
+            Path.Combine(imagesDir, "background.jpg"),
+            Path.Combine(imagesDir, "background.png"),
     };
 
             foreach (var path in candidates)
@@ -809,11 +890,16 @@ namespace SecureChat.Client
         // add inside frmMainChat class
         private FileSystemWatcher? _wallpaperWatcher;
 
+        // Tự động theo dõi một thư mục ảnh.
+        // Khi thêm, xóa hoặc sửa ảnh trong đó, chương trình sẽ biết để cập nhật hình nền ngay lập tức.
         private void SetupWallpaperWatcher()
         {
             try
             {
+                // Tạo đường dẫn đến thư mục chứa ảnh. Nó kết hợp: Nơi phần mềm đang chạy (StartupPath) + thư mục Resources + thư mục Images.
                 string dir = Path.Combine(Application.StartupPath, "Resources", "Images");
+
+                // Kiểm tra xem thư mục đó có tồn tại không. Nếu không thấy thư mục, thoát luôn (không theo dõi gì cả).
                 if (!Directory.Exists(dir)) return;
 
                 _wallpaperWatcher = new FileSystemWatcher(dir)
@@ -835,6 +921,8 @@ namespace SecureChat.Client
             }
         }
 
+        // Xử lý khi có sự kiện thay đổi file xảy ra.
+        // Mục tiêu của nó là lọc đúng file ảnh cần thiết và cập nhật lại giao diện một cách an toàn.
         private void OnWallpaperFileChanged(object sender, FileSystemEventArgs e)
         {
             // only react to the names LoadWallpaper() searches for
@@ -851,14 +939,20 @@ namespace SecureChat.Client
             }, TaskScheduler.Default);
         }
 
+        // vai trò "dọn dẹp" dữ liệu cũ để chuẩn bị cho việc hiển thị hình ảnh mới
         private void ReloadWallpaper()
         {
             _wallpaperLoaded = false;
             _wallpaper?.Dispose();
             _wallpaper = null;
-            _pnlMessages?.Invalidate();
+
+            // Cập nhật lại bộ đệm ảnh thay vì chỉ Invalidate
+            UpdateCachedBackground();
+
+            // _pnlMessages?.Invalidate();
         }
 
+        // Tự tạo ra một hình nền mặc định (màu chuyển sắc - gradient) trong trường hợp chương trình không tìm thấy bất kỳ file ảnh nào trong thư mục.
         private Bitmap CreateFallbackWallpaper(int w, int h)
         {
             var bmp = new Bitmap(w, h);
@@ -872,9 +966,14 @@ namespace SecureChat.Client
             return bmp;
         }
 
+        /*
         private void PaintChatBackground(object sender, PaintEventArgs e)
         {
             var panel = sender as Panel;
+
+            // THÊM DÒNG NÀY — xóa vùng clip trước khi vẽ
+            e.Graphics.Clear(Color.FromArgb(0xDB, 0xE8, 0xD5)); // màu fallback gradient
+
             var img = LoadWallpaper();
             if (img != null)
             {
@@ -900,6 +999,7 @@ namespace SecureChat.Client
 
             }
         }
+        */
 
         private Button MakeChatHeaderBtn(string icon)
         {
@@ -1330,13 +1430,18 @@ namespace SecureChat.Client
             BuildMessages();
         }
 
+        // --- Modified methods and new helpers: replace the existing BuildMessages and BuildBubble implementations
+        //     and add the helper methods shown below into the frmMainChat class.
+
         private void BuildMessages()
         {
             // 1. CHÈN VÀO ĐÂY: Tạm dừng vẽ để tránh "nháy" khi xóa/thêm hàng loạt control
             _pnlMessages.SuspendLayout();
 
+            // BẮT BUỘC: Reset thanh cuộn về top trước khi thao tác
+            _pnlMessages.AutoScrollPosition = new Point(0, 0);
+
             _pnlMessages.Controls.Clear();
-            _pnlMessages.Invalidate();
 
             int y = 8;
 
@@ -1350,17 +1455,25 @@ namespace SecureChat.Client
                 Height = 24,
                 BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Dock = DockStyle.Top,
                 Padding = new Padding(8, 2, 8, 2),
             };
-            // Add first so DockStyle.Top places it at the top of the scrollable area
+
+            sep.Location = new Point(0, y);
+            sep.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            sep.Width = Math.Max(0, _pnlMessages.ClientSize.Width - _pnlMessages.Padding.Horizontal);
+
             _pnlMessages.Controls.Add(sep);
             y += sep.Height + 4;
 
             var bubbles = new List<Control>();
-            foreach (var msg in _msgs)
+
+            // Iterate with index to support actions that modify a specific message
+            for (int i = 0; i < _currentMsgs.Count; i++)
             {
-                var bubble = BuildBubble(msg.Text, msg.Out, msg.Time);
+                var msg = _currentMsgs[i];
+                bool isGroup = _convs.Find(c => c.Id == _activeConvId).IsGroup;
+                var bubble = BuildBubble(msg.Text, msg.Out, msg.Time, msg.Sender, isGroup, i);
+
                 // Make bubble respect panel resizing
                 bubble.Location = new Point(0, y);
                 bubble.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
@@ -1370,57 +1483,47 @@ namespace SecureChat.Client
                 y += bubble.Height + 4;
             }
 
-            // 2.Sau khi đã thêm xong hết, cho phép vẽ lại một lần duy nhất
             _pnlMessages.ResumeLayout(true);
 
-            // 3. Cuối cùng mới cuộn 
             if (bubbles.Count > 0)
                 _pnlMessages.ScrollControlIntoView(bubbles[^1]);
         }
 
-        private Panel BuildBubble(string text, bool isOut, string time)
+        // Updated BuildBubble signature: added messageIndex to identify which message the context menu acts on
+        private Panel BuildBubble(string text, bool isOut, string time,
+                           string sender = "", bool isGroup = false, int messageIndex = -1)
         {
             var pnl = new Panel { BackColor = Color.Transparent };
+
             int pad = 12; // Padding (khoảng cách lề) bên trong bubble.
+
+            const int avatarAreaW = 44;
+            int leftOffset = (!isOut && isGroup) ? avatarAreaW : 10;
 
             int maxW = 360; // // Mặc định rộng 360px
             if (_pnlMessages != null && _pnlMessages.ClientSize.Width > 0)
-                // Tính maxW bằng 66% chiều rộng khung chat để tin nhắn không kéo dài hết màn hình.
                 maxW = Math.Max(220, (int)(_pnlMessages.ClientSize.Width * 0.66f) - _pnlMessages.Padding.Horizontal);
 
-            // Đo kích thước thực tế của text khi hiển thị với font và chiều rộng giới hạn.
             SizeF sz;
             using (var g = _pnlMessages.CreateGraphics())
             {
                 sz = g.MeasureString(text, TG.FontRegular(9.5f), maxW - pad * 2);
             }
 
-            /*
-            int bw = Math.Min(maxW, Math.Max((int)sz.Width + pad * 2 + 30, 90));
-            int bh = (int)sz.Height + pad * 2;
-            pnl.Height = bh + 12;
-            */
-
-            // --- PHẦN TÍNH TOÁN LẠI ---
-            int statusHeight = 16; // Chừa khoảng trống cho dòng thời gian và tick
-            int bw = Math.Min(maxW, Math.Max((int)sz.Width + pad * 2 + 10, 100)); // // Tính chiều rộng bubble
-            int bh = (int)sz.Height + pad * 2 + statusHeight; // Chiều cao bubble = chiều cao chữ + padding + phần status.
-            pnl.Height = bh + 16; // Tăng chiều cao Panel bao ngoài
-
+            int statusHeight = 16;
+            int senderHeight = (!isOut && isGroup && !string.IsNullOrEmpty(sender)) ? 19 : 0;
+            int bw = Math.Min(maxW, Math.Max((int)sz.Width + pad * 2 + 10, 100));
+            int bh = (int)sz.Height + pad * 2 + statusHeight + senderHeight;
+            pnl.Height = bh + 16;
 
             pnl.Paint += (s, e) =>
             {
-
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-
-                // --- THÊM DÒNG NÀY ĐỂ KHỬ RĂNG CƯA CHỮ ---
-                //e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-                // Thay đổi dòng này:
                 e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
 
-
-                int x = isOut ? pnl.ClientSize.Width - bw - 10 : 10;
+                int x = isOut ? pnl.ClientSize.Width - bw - 10 : leftOffset;
                 int y = 4;
+
                 Color bg = isOut ? TG.MsgOutBg : TG.MsgInBg;
 
                 // Shadow
@@ -1429,7 +1532,7 @@ namespace SecureChat.Client
                 using var shadowPath = RoundedPanel.GetRoundedPath(shadowRect, TG.RadiusBubble);
                 e.Graphics.FillPath(shadowBrush, shadowPath);
 
-                // Bubble body
+                // Bubble
                 var bubbleRect = new Rectangle(x, y, bw, bh);
                 using var bubblePath = RoundedPanel.GetRoundedPath(bubbleRect, TG.RadiusBubble);
                 e.Graphics.FillPath(new SolidBrush(bg), bubblePath);
@@ -1446,55 +1549,237 @@ namespace SecureChat.Client
                     e.Graphics.FillPolygon(new SolidBrush(bg), tail);
                 }
 
+                // Sender name (chỉ group, tin nhận)
+                bool showSender = !isOut && isGroup && !string.IsNullOrEmpty(sender);
+                if (showSender)
+                {
+                    using var senderBrush = new SolidBrush(SenderNameColor(sender));
+                    e.Graphics.DrawString(sender, TG.FontSemiBold(8f), senderBrush, x + pad, y + pad);
+                }
 
-                // Text: Khống chế chiều cao vẽ chữ để không đè lên status
-                var textRect = new RectangleF(x + pad, y + pad, bw - pad * 2, sz.Height);
+                // Text tin nhắn - bắt đầu dưới tên người gửi
+                float textY = y + pad + (showSender ? 19 : 0);
+                var textRect = new RectangleF(x + pad, textY, bw - pad * 2, sz.Height);
                 e.Graphics.DrawString(text, TG.FontRegular(9.5f), new SolidBrush(TG.TextPrimary), textRect);
 
-                // Time & Ticks: Vẽ sát mép dưới của bh đã được nới rộng
+                // Time
                 var timeSz = e.Graphics.MeasureString(time, TG.FontRegular(7.5f));
-
-                // Đẩy tx sang trái thêm một chút nếu là tin nhắn gửi đi để dành chỗ cho Tick
                 float tx = x + bw - timeSz.Width - pad - (isOut ? 26 : 0);
-                float ty = y + bh - timeSz.Height - 6; // Cách đáy bubble 6px
-
-
-                // Vẽ thời gian
+                float ty = y + bh - timeSz.Height - 6;
                 e.Graphics.DrawString(time, TG.FontRegular(7.5f), new SolidBrush(TG.TextTime), tx, ty);
 
-                // Ticks: Căn chỉnh lại để "✓✓" nằm ngay ngắn trước thời gian
-                /*
-                if (isOut)
-                {
-                    // Vẽ icon check cách thời gian 2px về bên phải (hoặc bên trái tùy bạn)
-                    // Ở đây mình vẽ sau thời gian cho giống Telegram hiện đại
-                    float tickX = x + bw - pad - 22;
-                    e.Graphics.DrawString("✓✓", TG.FontRegular(8f), new SolidBrush(TG.Blue), tickX, ty - 1);
-                }
-                */
-                // Thay đổi dòng vẽ tick của bạn:
                 if (isOut)
                 {
                     float tickX = x + bw - pad - 22;
-                    // Thử dùng Segoe UI Symbol và FontStyle.Bold
                     using var tickFont = new Font("Segoe UI Symbol", 8f, FontStyle.Bold);
                     e.Graphics.DrawString("✓✓", tickFont, new SolidBrush(TG.Blue), tickX, ty - 1);
                 }
             };
 
+            // Context menu: align with Telegram-like items and wire proper logic
+            var ctx = new ContextMenuStrip
+            {
+                ShowImageMargin = false,
+                Font = new Font("Segoe UI", 10f),
+                Renderer = new ToolStripProfessionalRenderer(new ChatMenuColorTable())
+            };
 
-            // Context menu
-            var ctx = new ContextMenuStrip();
-            ctx.Items.Add("↩  Reply");
-            ctx.Items.Add("↗  Forward");
-            if (isOut) ctx.Items.Add("✎  Edit");
-            ctx.Items.Add("📌  Pin");
+            // Common actions
+            var miReply = new ToolStripMenuItem("↩  Reply");
+            miReply.Click += (_, __) => OnReplyMessage(messageIndex);
+            ctx.Items.Add(miReply);
+
+            var miForward = new ToolStripMenuItem("↗  Forward");
+            miForward.Click += (_, __) => OnForwardMessage(messageIndex);
+            ctx.Items.Add(miForward);
+
+            var miCopy = new ToolStripMenuItem("📋  Copy");
+            miCopy.Click += (_, __) => OnCopyMessage(messageIndex);
+            ctx.Items.Add(miCopy);
+
+            // Edit (only for outgoing messages)
+            if (isOut)
+            {
+                var miEdit = new ToolStripMenuItem("✎  Edit");
+                miEdit.Click += (_, __) => OnEditMessage(messageIndex);
+                ctx.Items.Add(miEdit);
+            }
+
+            var miPin = new ToolStripMenuItem("📌  Pin");
+            miPin.Click += (_, __) => OnPinMessage(messageIndex);
+            ctx.Items.Add(miPin);
+
+            // Delete submenu: Delete for me (always) and Delete for everyone (only if outgoing)
             ctx.Items.Add(new ToolStripSeparator());
-            var del = ctx.Items.Add("🗑  Delete");
-            del.ForeColor = Color.FromArgb(0xE2, 0x4B, 0x4A);
+            var miDelete = new ToolStripMenuItem("🗑  Delete");
+            var miDeleteForMe = new ToolStripMenuItem("Delete for me");
+            miDeleteForMe.Click += (_, __) => OnDeleteMessage(messageIndex, deleteForEveryone: false);
+            miDelete.DropDownItems.Add(miDeleteForMe);
+
+            if (isOut)
+            {
+                var miDeleteForEveryone = new ToolStripMenuItem("Delete for everyone");
+                miDeleteForEveryone.ForeColor = Color.FromArgb(0xE2, 0x4B, 0x4A);
+                miDeleteForEveryone.Click += (_, __) => OnDeleteMessage(messageIndex, deleteForEveryone: true);
+                miDelete.DropDownItems.Add(miDeleteForEveryone);
+            }
+            else
+            {
+                // For incoming messages Telegram sometimes provides "Report" or "Report spam" — skip for now.
+            }
+
+            ctx.Items.Add(miDelete);
+
             pnl.ContextMenuStrip = ctx;
 
+            // Avatar for group messages (unchanged)
+            if (!isOut && isGroup)
+            {
+                var av = new AvatarControl
+                {
+                    Size = new Size(32, 32),
+                    Location = new Point(6, 4)
+                };
+                av.SetName(sender);
+                pnl.Controls.Add(av);
+            }
+
             return pnl;
+        }
+
+        // --- Helper action implementations ---
+        private void OnReplyMessage(int index)
+        {
+            if (index < 0 || index >= _currentMsgs.Count) return;
+            var msg = _currentMsgs[index];
+            string sender = string.IsNullOrEmpty(msg.Sender) ? "You" : msg.Sender;
+            // Insert a simple quoted reply into the message box and focus it
+            _tbMessage.Text = $"> {sender}: {msg.Text}\r\n";
+            _tbMessage.Focus();
+            // FIX: Use the underlying TextBox's SelectionStart property
+            if (_tbMessage.Controls.Count > 0 && _tbMessage.Controls[0] is TextBox tb)
+                tb.SelectionStart = tb.Text.Length;
+        }
+
+        private void OnForwardMessage(int index)
+        {
+            if (index < 0 || index >= _currentMsgs.Count) return;
+            var msg = _currentMsgs[index];
+            // For now, copy to clipboard and inform user — a real implementation should open contact chooser
+            try
+            {
+                Clipboard.SetText(msg.Text ?? string.Empty);
+                MessageBox.Show(this, "Message copied to clipboard. Use Paste to forward or implement Forward UI.", "Forward", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch
+            {
+                MessageBox.Show(this, "Unable to copy message to clipboard.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void OnCopyMessage(int index)
+        {
+            if (index < 0 || index >= _currentMsgs.Count) return;
+            var msg = _currentMsgs[index];
+            try
+            {
+                Clipboard.SetText(msg.Text ?? string.Empty);
+            }
+            catch
+            {
+                MessageBox.Show(this, "Unable to copy message to clipboard.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void OnEditMessage(int index)
+        {
+            if (index < 0 || index >= _currentMsgs.Count) return;
+            var msg = _currentMsgs[index];
+            if (!msg.Out) return; // safety
+
+            if (TryShowEditDialog(msg.Text, out var newText))
+            {
+                var t = _currentMsgs[index];
+                _currentMsgs[index] = (newText, t.Out, t.Time, t.Sender);
+                BuildMessages();
+            }
+        }
+
+        private void OnPinMessage(int index)
+        {
+            if (index < 0 || index >= _currentMsgs.Count) return;
+            // No pin store currently — just notify. In a real app, persist pin to conversation state.
+            MessageBox.Show(this, "Message pinned (UI only). Implement persistent pinning in conversation state.", "Pin", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void OnDeleteMessage(int index, bool deleteForEveryone)
+        {
+            if (index < 0 || index >= _currentMsgs.Count) return;
+
+            var msg = _currentMsgs[index];
+            string prompt = deleteForEveryone
+                ? "Are you sure you want to delete this message for everyone?"
+                : "Are you sure you want to delete this message for you?";
+            var res = MessageBox.Show(this, prompt, "Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (res != DialogResult.Yes) return;
+
+            // Local removal
+            _currentMsgs.RemoveAt(index);
+
+            // If deleteForEveryone, in a real app we would notify server/hub to remove it for all clients.
+            if (deleteForEveryone)
+            {
+                // TODO: SignalR call: await _chatService.DeleteMessageForEveryone(conversationId, messageId);
+                MessageBox.Show(this, "Requested deletion for everyone (simulated). Implement server-side delete via API/SignalR.", "Delete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+
+            BuildMessages();
+        }
+
+        // Simple modal edit dialog (returns true if user clicked OK)
+        private bool TryShowEditDialog(string currentText, out string newText)
+        {
+            newText = currentText;
+            using var dlg = new Form()
+            {
+                Text = "Edit message",
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                StartPosition = FormStartPosition.CenterParent,
+                MinimizeBox = false,
+                MaximizeBox = false,
+                ShowInTaskbar = false,
+                Size = new Size(480, 200)
+            };
+
+            var tb = new TextBox()
+            {
+                Multiline = true,
+                Text = currentText,
+                Dock = DockStyle.Top,
+                Height = 100,
+                Font = TG.FontRegular(9.5f)
+            };
+
+            var btnOk = new Button() { Text = "OK", DialogResult = DialogResult.OK, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+            var btnCancel = new Button() { Text = "Cancel", DialogResult = DialogResult.Cancel, Anchor = AnchorStyles.Bottom | AnchorStyles.Right };
+
+            btnOk.Location = new Point(dlg.ClientSize.Width - 180, tb.Bottom + 20);
+            btnCancel.Location = new Point(dlg.ClientSize.Width - 90, tb.Bottom + 20);
+
+            dlg.Controls.Add(tb);
+            dlg.Controls.Add(btnOk);
+            dlg.Controls.Add(btnCancel);
+
+            dlg.AcceptButton = btnOk;
+            dlg.CancelButton = btnCancel;
+
+            var dr = dlg.ShowDialog(this);
+            if (dr == DialogResult.OK)
+            {
+                newText = tb.Text;
+                return true;
+            }
+            return false;
         }
 
         // ════════════════════════════════════════════
@@ -1505,7 +1790,10 @@ namespace SecureChat.Client
             if (string.IsNullOrWhiteSpace(_tbMessage.Text)) return;
             string text = _tbMessage.Text.Trim();
             _tbMessage.Text = "";
-            _msgs.Add((text, true, DateTime.Now.ToString("h:mm tt")));
+
+            // _msgs.Add((text, true, DateTime.Now.ToString("h:mm tt")));
+            _currentMsgs.Add((text, true, DateTime.Now.ToString("h:mm tt"), ""));
+
             BuildMessages();
         }
 
@@ -1598,6 +1886,139 @@ namespace SecureChat.Client
                 return cp;
             }
         }
+        private static readonly Color[] _senderPalette =
+{
+    Color.FromArgb(0xE5, 0x55, 0x45),
+    Color.FromArgb(0xF4, 0x8C, 0x4A),
+    Color.FromArgb(0x70, 0xBB, 0x4D),
+    Color.FromArgb(0x20, 0x9E, 0xD9),
+    Color.FromArgb(0x9B, 0x59, 0xB6),
+    Color.FromArgb(0xE9, 0x67, 0xA8),
+    Color.FromArgb(0x17, 0xA5, 0x89),
+};
 
+        private static Color SenderNameColor(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return _senderPalette[0];
+            int hash = 0;
+            foreach (char c in name) hash = hash * 31 + c;
+            return _senderPalette[Math.Abs(hash) % _senderPalette.Length];
+        }
+
+        internal class DoubleBufferedPanel : Panel
+        {
+            public DoubleBufferedPanel()
+            {
+                SetStyle(ControlStyles.OptimizedDoubleBuffer |
+                         ControlStyles.AllPaintingInWmPaint, true); // Bỏ SupportsTransparentBackColor
+                UpdateStyles();
+            }
+        }
+
+        private Bitmap _cachedBackground;
+
+        private void UpdateCachedBackground()
+        {
+            // Kiểm tra nếu Panel chưa có kích thước hoặc bị ẩn thì không làm gì cả
+            if (_pnlMessages.Width <= 0 || _pnlMessages.Height <= 0) return;
+
+            // 1. Tạo một Bitmap mới khớp hoàn toàn với kích thước hiện tại của Panel
+            Bitmap newBmp = new Bitmap(_pnlMessages.Width, _pnlMessages.Height);
+
+            using (Graphics g = Graphics.FromImage(newBmp))
+            {
+                // 2. Tô nền bằng màu mặc định trước (phòng trường hợp ảnh không phủ hết hoặc lỗi)
+                g.Clear(Color.FromArgb(0xDB, 0xE8, 0xD5));
+
+                // 3. Lấy ảnh wallpaper (sử dụng hàm LoadWallpaper bạn đã viết)
+                var img = LoadWallpaper();
+                if (img != null)
+                {
+                    // Sử dụng lại logic "Center Crop" chuyên nghiệp của bạn
+                    float scaleX = (float)_pnlMessages.Width / img.Width;
+                    float scaleY = (float)_pnlMessages.Height / img.Height;
+                    float scale = Math.Max(scaleX, scaleY);
+
+                    int drawW = (int)(img.Width * scale);
+                    int drawH = (int)(img.Height * scale);
+
+                    int offsetX = (_pnlMessages.Width - drawW) / 2;
+                    int offsetY = (_pnlMessages.Height - drawH) / 2;
+
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.SmoothingMode = SmoothingMode.HighQuality;
+
+                    g.DrawImage(img, offsetX, offsetY, drawW, drawH);
+                }
+            }
+
+            // 4. Cập nhật BackgroundImage cho Panel
+            // Giải phóng ảnh cũ để tránh tràn bộ nhớ (Memory Leak)
+            var oldBmp = _pnlMessages.BackgroundImage;
+            // Xóa 2 dòng code này đi:
+            // _pnlMessages.BackgroundImage = newBmp;
+            // _pnlMessages.BackgroundImageLayout = ImageLayout.None;
+
+            // Thay bằng 2 dòng này:
+            _pnlMessages.CachedWallpaper = newBmp;
+            _pnlMessages.Invalidate(); // Ra lệnh cho Panel vẽ lại nền lập tức
+
+            if (oldBmp != null) oldBmp.Dispose();
+        }
+
+    }
+
+    public class ChatPanel : Panel
+    {
+        public Bitmap CachedWallpaper { get; set; }
+
+        public ChatPanel()
+        {
+            this.SetStyle(
+                ControlStyles.AllPaintingInWmPaint |
+                ControlStyles.OptimizedDoubleBuffer |
+                ControlStyles.UserPaint |
+                ControlStyles.ResizeRedraw, true);
+            this.UpdateStyles();
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            if (CachedWallpaper != null)
+            {
+                var state = e.Graphics.Save();
+                e.Graphics.ResetTransform();
+                e.Graphics.DrawImage(CachedWallpaper, 0, 0);
+                e.Graphics.Restore(state);
+            }
+            else
+            {
+                var state = e.Graphics.Save();
+                e.Graphics.ResetTransform();
+                e.Graphics.Clear(this.BackColor);
+                e.Graphics.Restore(state);
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_ERASEBKGND = 0x0014;
+            const int WM_VSCROLL = 0x0115;
+            const int WM_HSCROLL = 0x0114;
+            const int WM_MOUSEWHEEL = 0x020A;
+
+            if (m.Msg == WM_ERASEBKGND)
+            {
+                m.Result = (IntPtr)1;
+                return;
+            }
+
+            base.WndProc(ref m);
+
+            if (m.Msg == WM_VSCROLL || m.Msg == WM_HSCROLL || m.Msg == WM_MOUSEWHEEL)
+            {
+                this.Invalidate();
+            }
+        }
     }
 }
