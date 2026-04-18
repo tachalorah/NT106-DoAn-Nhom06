@@ -150,8 +150,14 @@ namespace SecureChat.Client
 
         public AvatarControl()
         {
-            SetStyle(ControlStyles.UserPaint | ControlStyles.ResizeRedraw |
-                     ControlStyles.SupportsTransparentBackColor, true);
+            // Giữ các style cũ và thêm các style tối ưu mới
+            SetStyle(ControlStyles.UserPaint |
+                     ControlStyles.ResizeRedraw |
+                     ControlStyles.SupportsTransparentBackColor |
+                     ControlStyles.AllPaintingInWmPaint | // Quan trọng: Bỏ qua tin nhắn vẽ nền của Windows để giảm nháy
+                     ControlStyles.OptimizedDoubleBuffer, // Quan trọng: Vẽ trong bộ nhớ trước khi đẩy ra màn hình
+                     true);
+
             DoubleBuffered = true;
             BackColor = Color.Transparent;
         }
