@@ -7,6 +7,9 @@ using System.IO;                    // File, Path, MemoryStream, FileSystemWatch
 using System.Reflection;
 using System.Threading.Tasks;       // Task.Delay (dùng cho wallpaper reload)
 using System.Windows.Forms;         // Form, Panel, Button, Label, ...
+using System.Net.Http;
+using System.Threading;
+using SecureChat.Client.Components.Chat;
 
 namespace SecureChat.Client
 {
@@ -90,6 +93,7 @@ namespace SecureChat.Client
         ("Quack Cyber added Sim 18a3",                                                               false, "10:10 PM", "Bot"),
         ("Tuấn Thành, you've been wonderful friends for so long. I could never imagine you doing this to me.", true, "10:15 PM", ""),
         ("Search it",                                                                                 true,  "10:16 PM", ""),
+        ("file::abcdef::abcdef::14.5 KB",            false, "1:57 AM",   "Bot")
     },
             ["2"] = new()   // group chat NT106
     {
@@ -1493,6 +1497,95 @@ namespace SecureChat.Client
         private Panel BuildBubble(string text, bool isOut, string time,
                            string sender = "", bool isGroup = false, int messageIndex = -1)
         {
+            // file::url::name::size
+            const string filePrefix = "file::";
+            if (!string.IsNullOrEmpty(text) && text.StartsWith(filePrefix, StringComparison.Ordinal))
+            {
+                var payload = text.Substring(filePrefix.Length);
+                var parts = payload.Split(new[] { "::" }, StringSplitOptions.None);
+                string url = parts.Length > 0 ? parts[0] : "";
+                string fileName = parts.Length > 1 ? parts[1] : "";
+                string fileSize = parts.Length > 2 ? parts[2] : "";
+                
+                var panel = new Panel { BackColor = Color.Transparent };
+                var fileCtrl = new ucFileBubble
+                {
+                    FileName = fileName,
+                    FileSize = fileSize,
+                    IsOutgoing = isOut,
+                    Top = 4,
+                };
+
+                fileCtrl.Anchor = isOut ? AnchorStyles.Right : AnchorStyles.Left;
+                fileCtrl.Width = Math.Min(360, Math.Max(220, (int)(_pnlMessages.ClientSize.Width * 0.45f)));
+                panel.Height = fileCtrl.Height + 8;
+                panel.Resize += (s, e) =>
+                {
+                    int leftOffset = (!isOut && isGroup) ? 44 : 10;
+                    if (isOut)
+                    {
+                        fileCtrl.Left = Math.Max(10, panel.ClientSize.Width - fileCtrl.Width - 10);
+                    }
+                    else
+                    {
+                        fileCtrl.Left = leftOffset;
+                    }
+                };
+
+                fileCtrl.FileClicked += async (s, e) =>
+                {
+                    using var sfd = new SaveFileDialog
+                    {
+                        FileName = fileName,
+                        Filter = "All Files|*.*",
+                        Title = "Save File"
+                    };
+
+                    if (sfd.ShowDialog(this) != DialogResult.OK)
+                        return;
+
+                    var destination = sfd.FileName;
+                    var cts = new CancellationTokenSource();
+
+                    void OnCanceled(object? sender2, EventArgs e2)
+                    {
+                        cts.Cancel();
+                    }
+
+                    fileCtrl.DownloadCanceled += OnCanceled;
+
+                    try
+                    {
+                        await fileCtrl.StartDownloadAsync(async progress =>
+                        {
+                            await DownloadUrlToFileAsync(url, destination, progress, cts.Token).ConfigureAwait(false);
+                        }).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (File.Exists(destination))
+                        {
+                            try { File.Delete(destination); } catch { }
+                            this.BeginInvoke(new Action(() => MessageBox.Show(this, "Download cancelled.", "Cancelled", MessageBoxButtons.OK, MessageBoxIcon.Information)));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        this.BeginInvoke(new Action(() => MessageBox.Show(this, $"Failed to download file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)));
+                    }
+                    finally
+                    {
+                        fileCtrl.DownloadCanceled -= OnCanceled;
+                        cts.Dispose();
+                    }
+                };
+
+                panel.Controls.Add(fileCtrl);
+
+                panel.PerformLayout();
+                return panel;
+            }
+          
             var pnl = new Panel { BackColor = Color.Transparent };
 
             int pad = 12; // Padding (khoảng cách lề) bên trong bubble.
@@ -1648,6 +1741,41 @@ namespace SecureChat.Client
         }
 
         // --- Helper action implementations ---
+
+        private static async Task DownloadUrlToFileAsync(string url, string destinationPath, IProgress<int> progress, CancellationToken token)
+        {
+            if (string.IsNullOrEmpty(url))
+                throw new ArgumentException("Empty URL");
+
+            using var client = new HttpClient();
+            using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
+            resp.EnsureSuccessStatusCode();
+
+            var contentLength = resp.Content.Headers.ContentLength ?? -1L;
+            using var stream = await resp.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
+            using var fs = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
+
+            var buffer = new byte[81920];
+            long totalRead = 0;
+            int read;
+            while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false)) > 0)
+            {
+                await fs.WriteAsync(buffer, 0, read, token).ConfigureAwait(false);
+                totalRead += read;
+                if (contentLength > 0)
+                {
+                    int percent = (int)(totalRead * 100L / contentLength);
+                    progress?.Report(percent);
+                }
+                else
+                {
+                    var coarse = Math.Min(99, (int)Math.Min(99, totalRead / 100_000)); // every ~100KB yields +1
+                    progress?.Report(coarse);
+                }
+            }
+
+            progress?.Report(100);
+        }
         private void OnReplyMessage(int index)
         {
             if (index < 0 || index >= _currentMsgs.Count) return;
