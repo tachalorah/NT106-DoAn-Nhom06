@@ -1,44 +1,84 @@
 # 🛡️ SecureChat - E2EE Real-time Communication System
 
-> Đồ án Lập trình mạng căn bản - Xây dựng hệ thống Chat bảo mật cao với cơ chế Mã hóa đầu cuối (E2EE), Kiểm tra toàn vẹn dữ liệu và Giao tiếp thời gian thực.
+> Đồ án Lập trình mạng căn bản - Hệ thống chat bảo mật cao với cơ chế Mã hóa đầu cuối (E2EE), Kiểm tra toàn vẹn dữ liệu và Giao tiếp thời gian thực.
 
 ![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?style=for-the-badge&logo=dotnet)
 ![C#](https://img.shields.io/badge/C%23-239120?style=for-the-badge&logo=c-sharp)
-![SQLite](https://img.shields.io/badge/SQLite-07405E?style=for-the-badge&logo=sqlite)
+![MariaDB](https://img.shields.io/badge/MariaDB-003545?style=for-the-badge&logo=mariadb)
 ![SignalR](https://img.shields.io/badge/SignalR-RealTime-blue?style=for-the-badge)
 
+---
+
 ## 📖 Giới thiệu (Overview)
-**SecureChat** là ứng dụng nhắn tin Desktop (Client-Server) tập trung vào quyền riêng tư và bảo mật dữ liệu. Hệ thống đảm bảo mọi tin nhắn, tệp tin và âm thanh đều được mã hóa trước khi truyền tải, đồng thời tích hợp các cơ chế chống tấn công đánh cắp tài khoản và kiểm tra toàn vẹn dữ liệu.
+
+**SecureChat** là ứng dụng nhắn tin Desktop theo mô hình Client-Server, tập trung vào **bảo mật và quyền riêng tư dữ liệu**.
+
+Hệ thống đảm bảo:
+- Mọi tin nhắn đều được mã hóa trước khi truyền đi
+- Server không thể đọc nội dung gốc
+- Có cơ chế kiểm tra toàn vẹn dữ liệu và xác thực người dùng
+
+---
 
 ## ✨ Tính năng nổi bật (Key Features)
 
-### 🔒 1. Giải pháp Bảo mật & Xác thực
-* **Mã hóa đầu cuối (E2EE):** Tin nhắn văn bản, Voice và File được mã hóa bằng **AES-256** ngay tại Client trước khi gửi. Server chỉ lưu trữ dữ liệu dạng Ciphertext.
-* **Bảo vệ Mật khẩu:** Chống tấn công Brute-force/Rainbow Tables bằng thuật toán băm **Argon2id** kết hợp Salt (16 bytes).
-* **Kiểm tra Toàn vẹn (Integrity Check):** Tự động tính toán và đối chiếu mã băm **SHA-256** khi tải File/Voice để phát hiện dữ liệu bị can thiệp.
-* **Xác thực 2 lớp (2FA):** Hỗ trợ gửi mã OTP qua Email cho các tác vụ quan trọng.
+### 🔒 1. Bảo mật & Xác thực
+- **Mã hóa đầu cuối (E2EE):** AES-256 mã hóa tại Client trước khi gửi, Server chỉ lưu ciphertext.
+- **Băm mật khẩu an toàn:** Argon2id + Salt (16 bytes).
+- **Kiểm tra toàn vẹn dữ liệu:** SHA-256 phát hiện chỉnh sửa file/voice.
+- **Xác thực JWT:** Quản lý phiên đăng nhập an toàn.
+- **2FA (OTP Email):** Xác thực hai lớp khi đăng nhập hoặc reset mật khẩu.
 
-### 💬 2. Giao tiếp Thời gian thực (Real-time Communication)
-* Nhắn tin cá nhân (1-1) và Nhắn tin nhóm (Group Chat) độ trễ thấp thông qua **SignalR Core**.
-* Hiển thị trạng thái Online/Offline, "Đang gõ...".
-* Phân quyền Quản trị viên nhóm (Admin): Kick, Mute thành viên.
+---
 
-### 📞 3. Đa phương tiện (Multimedia)
-* **Voice Message:** Ghi âm, mã hóa và phát lại trực tiếp trên ứng dụng.
-* **Video Call:** Cuộc gọi hình ảnh thời gian thực (P2P Streaming) trong mạng LAN.
+### 💬 2. Giao tiếp thời gian thực
+- Nhắn tin 1-1 và nhóm qua **SignalR Core**
+- Trạng thái online/offline
+- “Đang nhập...” (typing indicator)
+- Quản lý nhóm: thêm/xóa thành viên, phân quyền Admin
 
-## 🛠️ Công nghệ sử dụng (Tech Stack)
+---
 
-**Backend (Server)**
-* **Framework:** ASP.NET Core Web API (.NET 8)
-* **Real-time:** SignalR Core
-* **Database & ORM:** SQLite + Entity Framework Core
-* **Authentication:** JWT (JSON Web Token)
+### 📞 3. Đa phương tiện
+- 🎤 Voice Message (ghi âm + mã hóa AES-256)
+- 📁 File Transfer an toàn (kèm SHA-256 integrity check)
+- 📹 Video Call (OpenCvSharp + streaming LAN)
 
-**Frontend (Client)**
-* **Framework:** Windows Forms (.NET 8)
-* **Multimedia:** `NAudio` (Xử lý âm thanh), `OpenCvSharp4.Windows` (Xử lý Camera)
-* **Cryptography:** `Konscious.Security.Cryptography.Argon2`, `System.Security.Cryptography`
+---
+
+## 🛠️ Tech Stack
+
+### 🖥️ Backend (Server)
+- ASP.NET Core Web API (.NET 8)
+- SignalR Core (Realtime)
+- Entity Framework Core
+- **Database: MariaDB**
+- JWT Authentication
+
+### 💻 Client (WinForms)
+- Windows Forms (.NET 8)
+- NAudio (Audio processing)
+- OpenCvSharp4 (Camera streaming)
+- AES-256 Encryption
+- SHA-256 Integrity Check
+
+---
+
+## 🗄️ Database
+
+- **MariaDB (MySQL-compatible)**
+- ORM: Entity Framework Core (Pomelo Provider)
+
+### Main Tables:
+- Users
+- Messages
+- Conversations
+- Friendships
+- FriendRequests
+- Groups
+- GroupMembers
+
+---
 
 ## 🚀 Hướng dẫn Cài đặt (Getting Started)
 
