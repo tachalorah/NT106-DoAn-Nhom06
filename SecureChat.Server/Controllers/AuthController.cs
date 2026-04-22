@@ -14,7 +14,7 @@ namespace SecureChat.Controllers
 {
 	[ApiController]
 	[Route("api/auth")]
-	public class AuthController(UserRepository users, TokenService tokens, IConfiguration config) : BaseController
+  public class AuthController(UserRepository users, TokenService tokens, IConfiguration config, ForgotPasswordService forgotPasswordService, ILogger<AuthController> logger) : BaseController
 	{
 		[HttpPost("register")]
 		public async Task<IActionResult> Register([FromBody] RegisterRequest req)
@@ -82,6 +82,66 @@ namespace SecureChat.Controllers
 
 			await users.UpdateSessionAsync(session.SessionID, req.RefreshToken, newExpiry);
 			return Ok(new AuthResponse(newAccess, req.RefreshToken, newExpiry, UserResponse.From(session.User)));
+		}
+
+		[HttpPost("forgot-password/request-otp")]
+		public async Task<IActionResult> RequestForgotPasswordOtp([FromBody] ForgotPasswordRequestOtpRequest req)
+		{
+			var user = await users.GetByEmailAsync(req.Email);
+			if (user is not null)
+			{
+				await forgotPasswordService.CreateOtpAsync(req.Email);
+			}
+
+			return Ok(new ForgotPasswordRequestOtpResponse("If the email is registered, an OTP has been sent."));
+		}
+
+		[HttpPost("forgot-password/verify-otp")]
+		public async Task<IActionResult> VerifyForgotPasswordOtp([FromBody] ForgotPasswordVerifyOtpRequest req)
+		{
+			var user = await users.GetByEmailAsync(req.Email);
+			if (user is null)
+			{
+				return BadRequest(new { message = "Invalid OTP.", errorCode = "INVALID_OTP" });
+			}
+
+			var result = await forgotPasswordService.VerifyOtpAsync(req.Email, req.Otp);
+			if (result.Status == OtpVerifyStatus.Expired)
+			{
+				return BadRequest(new { message = "OTP expired.", errorCode = "EXPIRED_OTP" });
+			}
+
+			if (result.Status != OtpVerifyStatus.Success || string.IsNullOrWhiteSpace(result.ResetToken))
+			{
+				return BadRequest(new { message = "Invalid OTP.", errorCode = "INVALID_OTP" });
+			}
+
+			return Ok(new ForgotPasswordVerifyOtpResponse("OTP verified.", result.ResetToken));
+		}
+
+		[HttpPost("forgot-password/reset")]
+		public async Task<IActionResult> ResetForgotPassword([FromBody] ForgotPasswordResetRequest req)
+		{
+			var tokenResult = await forgotPasswordService.ValidateResetTokenAsync(req.ResetToken);
+			if (tokenResult.Status == ResetTokenStatus.Expired)
+			{
+				return BadRequest(new { message = "Reset token expired.", errorCode = "EXPIRED_TOKEN" });
+			}
+
+			if (tokenResult.Status != ResetTokenStatus.Valid || string.IsNullOrWhiteSpace(tokenResult.Email))
+			{
+				return BadRequest(new { message = "Invalid reset token.", errorCode = "INVALID_TOKEN" });
+			}
+
+			var user = await users.GetByEmailAsync(tokenResult.Email);
+			if (user is null)
+			{
+				logger.LogWarning("Forgot-password reset skipped: user not found for email {Email}", tokenResult.Email);
+				return BadRequest(new { message = "Invalid reset token.", errorCode = "INVALID_TOKEN" });
+			}
+
+			await users.UpdateHashedPasswordOnlyAsync(user.UserID, req.NewPassword);
+			return Ok(new ForgotPasswordResetResponse("Password reset successful."));
 		}
 
 		[Authorize]

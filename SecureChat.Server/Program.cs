@@ -13,6 +13,13 @@ var builder = WebApplication.CreateBuilder(args);
 var connStr = builder.Configuration.GetConnectionString("Default")
 	?? throw new InvalidOperationException("Connection string 'Default' not found.");
 
+if (connStr.Contains("Data Source=", StringComparison.OrdinalIgnoreCase)
+	|| connStr.Contains(".db", StringComparison.OrdinalIgnoreCase)
+	|| connStr.Contains("sqlite", StringComparison.OrdinalIgnoreCase))
+{
+	throw new InvalidOperationException("SQLite connection string detected. SecureChat.Server only supports MariaDB/MySQL.");
+}
+
 builder.Services.AddDbContext<AppDbContext>(o => o.UseMySql(
 	connStr, ServerVersion.AutoDetect(connStr), my => my.EnableRetryOnFailure(maxRetryCount: 3))
 );
@@ -23,6 +30,7 @@ builder.Services.AddScoped<ConversationRepository>();
 builder.Services.AddScoped<MessageRepository>();
 builder.Services.AddScoped<CallRepository>();
 builder.Services.AddScoped<TokenService>();
+builder.Services.AddSingleton<ForgotPasswordService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"]
 	?? throw new InvalidOperationException("Jwt:Key is not configured.");

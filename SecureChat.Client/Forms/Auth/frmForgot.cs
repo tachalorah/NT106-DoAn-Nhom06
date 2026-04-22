@@ -1,7 +1,11 @@
-using NAudio.Gui;
 using System;
+using System.Diagnostics;
 using System.Drawing;
+using System.Threading.Tasks;
 using System.Windows.Forms;
+
+using SecureChat.Client.Helpers;
+using SecureChat.Client.Services.Api;
 
 namespace SecureChat.Client
 {
@@ -10,7 +14,9 @@ namespace SecureChat.Client
 
     public class frmForgot : Form
     {
+        private readonly IAuthService _authService;
         private int _step = 1; // 1=email, 2=otp, 3=newpass
+        private string? _resetToken;
 
         private Panel _pnlMain; // thêm vào chỗ khai báo field
 
@@ -41,7 +47,13 @@ namespace SecureChat.Client
         private TelegramHeader _header;
 
         public frmForgot()
+            : this(new AuthService(ApiClient.Create(), message => Debug.WriteLine(message)))
         {
+        }
+
+        public frmForgot(IAuthService authService)
+        {
+            _authService = authService;
             InitializeComponent();
             ShowStep(1);
         }
@@ -257,7 +269,7 @@ namespace SecureChat.Client
 
             // Buttons
             _btnNext = new TelegramButton { Text = "TIẾP THEO", Height = 46, Font = TG.FontSemiBold(10.5f), Radius = TG.RadiusSmall };
-            _btnNext.Click += BtnNext_Click;
+            _btnNext.Click += BtnNext_ClickAsync;
 
             _pnlContent.Controls.AddRange(new Control[] {
                 // step1
@@ -303,11 +315,12 @@ namespace SecureChat.Client
             switch (step)
             {
                 case 1:
+                    _resetToken = null;
                     _header.Title = "Đặt lại mật khẩu";
                     _lblStepTitle.Text = "Nhập email của bạn";
-                    _lblStepDesc.Text = "Chúng tôi sẽ gửi link xác nhận để đặt lại mật khẩu.";
+                    _lblStepDesc.Text = "Chúng tôi sẽ gửi mã OTP để đặt lại mật khẩu.";
                     SetStep1Visible(true); SetStep2Visible(false); SetStep3Visible(false);
-                    _btnNext.Text = "GỬI LINK ĐẶT LẠI";
+                    _btnNext.Text = "GỬI MÃ OTP";
                     break;
                 case 2:
                     _header.Title = "Nhập mã xác nhận";
@@ -321,7 +334,7 @@ namespace SecureChat.Client
                 case 3:
                     _header.Title = "Mật khẩu mới";
                     _lblStepTitle.Text = "Đặt mật khẩu mới";
-                    _lblStepDesc.Text = "Mật khẩu mới phải có ít nhất 8 ký tự.";
+                    _lblStepDesc.Text = "Mật khẩu phải có chữ hoa, chữ thường, số và ký tự đặc biệt.";
                     SetStep1Visible(false); SetStep2Visible(false); SetStep3Visible(true);
                     _btnNext.Text = "ĐẶT LẠI MẬT KHẨU";
                     _tbNewPass.Text = "";
@@ -392,40 +405,105 @@ namespace SecureChat.Client
             _btnNext.SetBounds(pad, y, w, 46);
         }
 
-        private void BtnNext_Click(object sender, EventArgs e)
+        private async void BtnNext_ClickAsync(object sender, EventArgs e)
         {
             HideError();
-            switch (_step)
+            try
             {
-                case 1:
-                    if (string.IsNullOrWhiteSpace(_tbEmail.Text)) { ShowError("Vui lòng nhập địa chỉ email."); return; }
-                    if (!_tbEmail.Text.Contains("@")) { ShowError("Email không hợp lệ."); return; }
-
-                    if (!_lblEmailHint.Visible)
-                    {
-                        // Lần nhấn đầu: hiện hint, đổi text nút
-                        _lblEmailHint.Visible = true;
-                        _btnNext.Text = "TIẾP THEO";
-                        DoLayout(_pnlMain);
-                        return; // ← chưa chuyển bước
-                    }
-
-                    // Lần nhấn thứ 2: chuyển sang bước 2
-                    ShowStep(2);
-                    break;
-                case 2:
-                    string otp = "";
-                    foreach (var b in _otpBoxes) otp += b.Text;
-                    if (otp.Length < 6) { ShowError("Vui lòng nhập đủ 6 chữ số."); return; }
-                    ShowStep(3);
-                    break;
-                case 3:
-                    if (_tbNewPass.Text.Length < 8) { ShowError("Mật khẩu phải có ít nhất 8 ký tự."); return; }
-                    if (_tbNewPass.Text != _tbConfirmPass.Text) { ShowError("Mật khẩu xác nhận không khớp."); return; }
-                    MessageBox.Show("Đặt lại mật khẩu thành công!\nVui lòng đăng nhập lại.", "SecureChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    Close();
-                    break;
+                _btnNext.Enabled = false;
+                switch (_step)
+                {
+                    case 1:
+                        await HandleRequestOtpAsync();
+                        break;
+                    case 2:
+                        await HandleVerifyOtpAsync();
+                        break;
+                    case 3:
+                        await HandleResetPasswordAsync();
+                        break;
+                }
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[frmForgot] Unexpected UI error: {ex}");
+                ShowError("An unexpected error occurred. Please try again.");
+            }
+            finally
+            {
+                _btnNext.Enabled = true;
+            }
+        }
+
+        private async Task HandleRequestOtpAsync()
+        {
+            var email = _tbEmail.Text.Trim();
+            if (!ValidationHelper.IsValidEmail(email))
+            {
+                ShowError("Email is not in a valid format.");
+                return;
+            }
+
+            var result = await _authService.RequestPasswordOtpAsync(email);
+            if (!result.Success)
+            {
+                ShowError(result.Message);
+                return;
+            }
+
+            _lblEmailHint.Text = result.Message;
+            _lblEmailHint.Visible = true;
+            DoLayout(_pnlMain);
+            ShowStep(2);
+        }
+
+        private async Task HandleVerifyOtpAsync()
+        {
+            var otp = string.Concat(Array.ConvertAll(_otpBoxes, b => b.Text)).Trim();
+            if (otp.Length != 6)
+            {
+                ShowError("Please enter the full 6-digit OTP.");
+                return;
+            }
+
+            var result = await _authService.VerifyPasswordOtpAsync(_tbEmail.Text.Trim(), otp);
+            if (!result.Success || result.Data is null)
+            {
+                ShowError(result.Message);
+                return;
+            }
+
+            _resetToken = result.Data.ResetToken;
+            ShowStep(3);
+        }
+
+        private async Task HandleResetPasswordAsync()
+        {
+            if (_tbNewPass.Text != _tbConfirmPass.Text)
+            {
+                ShowError("Password confirmation does not match.");
+                return;
+            }
+
+            if (!ValidationHelper.IsStrongPassword(_tbNewPass.Text, out var passwordError))
+            {
+                ShowError(passwordError);
+                return;
+            }
+
+            var result = await _authService.ResetPasswordAsync(_resetToken ?? string.Empty, _tbNewPass.Text);
+            if (!result.Success)
+            {
+                ShowError(result.Message);
+                if (result.ErrorCode is not null && result.ErrorCode.Contains("TOKEN"))
+                {
+                    ShowStep(1);
+                }
+                return;
+            }
+
+            MessageBox.Show("Password reset successful. Please sign in again.", "SecureChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Close();
         }
 
         private void UpdateCountdown()
