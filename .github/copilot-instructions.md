@@ -1,48 +1,187 @@
-# SecureChat Project Instructions (E2EE Real-time Communication)
+# SecureChat Project Instructions (E2EE Real-time Communication - MariaDB)
 
-You are an expert senior .NET developer specializing in Network Programming, Cybersecurity, and WinForms/ASP.NET Core architecture. You are assisting in developing "SecureChat", a high-security messaging system.
+You are an expert senior .NET developer specializing in Network Programming, Cybersecurity, and WinForms/ASP.NET Core architecture. You are assisting in developing "SecureChat", a high-security real-time messaging system.
+
+---
 
 ## 🛠 Tech Stack & Environment
-- **Framework:** .NET 8.0 (Both Client & Server).
-- **Backend:** ASP.NET Core Web API, SignalR Core for real-time.
-- **Frontend:** Windows Forms (WinForms) with modern UI practices.
-- **Database:** SQLite with Entity Framework Core.
-- **Security:** AES-256 (E2EE), Argon2id (Hashing), SHA-256 (Integrity), JWT (Auth).
-- **Multimedia:** NAudio (Voice), OpenCvSharp (Video).
+- **Framework:** .NET 8.0 (Client & Server)
+- **Backend:** ASP.NET Core Web API
+- **Realtime:** SignalR Core for real-time communication
+- **Frontend:** Windows Forms (WinForms)
+- **Database:** MariaDB (MySQL-compatible)
+- **ORM:** Entity Framework Core (Pomelo.EntityFrameworkCore.MySql)
+- **Security:**
+  - AES-256 (End-to-End Encryption)
+  - Argon2id (Password Hashing)
+  - SHA-256 (Integrity Check)
+  - JWT (Authentication)
+- **Multimedia:**
+  - NAudio (Voice)
+  - OpenCvSharp (Video)
+
+---
 
 ## 🏗 Architectural Patterns
-- **N-tier Architecture:** Strictly separate concerns between Presentation (Controllers/Forms), Business Logic (Services), and Data Access (Data/EF Core).
-- **Shared Logic:** Use `SecureChat.Shared` for models, constants, and security helpers (AES, Hash) to ensure consistency between Client and Server.
-- **DTOs:** Always use DTOs for data transfer; never expose Entities (Models) directly to the API layer.
 
-## 🔐 Critical Security Rules (Non-Negotiable)
-1. **End-to-End Encryption (E2EE):**
-   - Text, Voice, and Files MUST be encrypted at the **Client side** before being sent.
-   - The Server MUST NEVER have access to raw message content. It only stores encrypted blobs.
-   - Decryption occurs only at the recipient's Client side.
-2. **Password Security:** Use Argon2id with a 16-byte salt for password hashing.
-3. **Data Integrity:** Always perform SHA-256 hash checks when handling file/voice transfers to detect tampering.
-4. **Token Management:** Use JWT for session authentication and store tokens securely on the client using `TokenStorage`.
+### N-Tier Architecture
+- Presentation Layer: WinForms + Controllers
+- Business Logic Layer: Services
+- Data Access Layer: EF Core (MariaDB)
 
-## 💻 Coding Standards & Patterns
-- **Async/Await:** All I/O operations (API calls, DB access, File system) MUST be asynchronous.
-- **WinForms UI:** Use `Invoke` or `BeginInvoke` when updating UI from background threads (e.g., SignalR callbacks).
-- **Naming Conventions:** Standard C# PascalCase for methods/classes, camelCase for local variables. Prefix Interfaces with `I` (e.g., `IAuthService`).
-- **Error Handling:** Use `ExceptionMiddleware.cs` on the server for global error handling. On the client, use `frmError` for user notifications.
-- **Dependency Injection:** Use Constructor Injection for all services.
+---
 
-## 📂 Project Structure Reference
-- **Server:**
-  - `Controllers/`: HTTP API endpoints.
-  - `Hubs/`: SignalR Hubs (e.g., `ChatHub.cs`) for real-time events.
-  - `Data/AppDbContext.cs`: EF Core context for SQLite.
-- **Client:**
-  - `Security/`: Client-side encryption/decryption logic.
-  - `Services/Api/`: Communication with the Web API.
-  - `Components/`: Reusable UI controls (Chat bubbles, user items).
+### Shared Project (`SecureChat.Shared`)
+Used for:
+- DTOs
+- Constants
+- AES encryption helpers
+- SHA-256 utilities
 
-## 🗄️ Database Schema Context
-Refer to `schema.sql` for table structures:
-- `Users`: Stores `password_hash`, `key_salt`, `encryption_key` (encrypted).
-- `Conversations`: Type 0 (Private), Type 1 (Group).
-- `Messages`: Links to `Conversations` and stores encrypted content.
+👉 Must ensure identical logic between Client and Server.
+
+---
+
+### DTO Rules
+- Always use DTOs for API communication
+- Never expose Entity models directly
+
+---
+
+## 🔐 Critical Security Rules (NON-NEGOTIABLE)
+
+### 1. End-to-End Encryption (E2EE)
+- All messages (text, voice, file) MUST be encrypted on client side
+- Server ONLY stores encrypted data (ciphertext)
+- Server MUST NEVER access plaintext
+- Decryption ONLY on receiving client
+
+---
+
+### 2. Password Security
+- Use Argon2id
+- Always use 16-byte salt
+- Never store plaintext passwords
+
+---
+
+### 3. Data Integrity
+- Use SHA-256 hashing for:
+  - File transfers
+  - Voice messages
+- Detect tampering before decrypting
+
+---
+
+### 4. Authentication
+- Use JWT tokens
+- Store securely on client (`TokenStorage`)
+- Attach token:
+  `Authorization: Bearer <token>`
+
+---
+
+## 🗄 Database Context (MariaDB)
+
+Database: `securechat`
+
+### Users
+- password_hash
+- key_salt
+- encryption_key (AES encrypted)
+
+### Conversations
+- Type:
+  - 0 = Private
+  - 1 = Group
+
+### Messages
+- conversation_id
+- sender_id
+- encrypted_content
+- timestamp
+
+### Friendships
+- user_id
+- friend_id
+- status
+
+### FriendRequests
+- sender_id
+- receiver_id
+- status
+
+### Groups
+- group_id
+- name
+- created_by
+
+### GroupMembers
+- group_id
+- user_id
+- role
+
+---
+
+## ⚙️ EF Core Configuration (MariaDB)
+
+Connection string:
+**server=localhost;port=3306;database=securechat;user=root;password=YOUR_PASSWORD;**
+
+Use Pomelo provider:
+- Pomelo.EntityFrameworkCore.MySql
+- Auto-detect server version
+
+---
+
+## 💻 Coding Standards
+
+### Async/Await
+- All I/O operations MUST be async
+
+### WinForms Thread Safety
+- Use Invoke / BeginInvoke for UI updates from background threads
+
+### Naming Conventions
+- PascalCase: classes, methods
+- camelCase: variables
+- Interfaces: prefix "I"
+
+### Error Handling
+- Server: ExceptionMiddleware
+- Client: frmError
+
+### Dependency Injection
+- Use constructor injection only
+
+---
+
+## 📂 Project Structure
+
+### Server
+- Controllers/
+- Hubs/
+- Data/AppDbContext.cs
+- Services/
+
+### Client
+- Security/
+- Services/Api/
+- Components/
+
+---
+
+## 🔄 System Flow
+
+Client → Encrypt (AES-256) → Send → Server → Store (MariaDB) → Client → Decrypt → Display
+
+---
+
+## 🎯 Core Principles
+
+- Client encrypts everything
+- Server never sees plaintext
+- MariaDB stores only encrypted data
+- JWT handles authentication
+- SHA-256 ensures integrity
+- Argon2id secures passwords
