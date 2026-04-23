@@ -28,6 +28,7 @@ namespace SecureChat.Models
 			ConfigureUniqueIndexes(modelBuilder);
 			ConfigureNonUniqueIndexes(modelBuilder);
 			ConfigureDefaultValues(modelBuilder);
+           modelBuilder.HasSecureChatSeedData();
 		}
 
 		private static void ConfigureRelationships(ModelBuilder m)
