@@ -45,6 +45,7 @@ namespace SecureChat.Client
         private Label _lblError;
         private Panel _pnlContent;
         private TelegramHeader _header;
+        private bool _isBusy;
 
         public frmForgot()
             : this(new AuthService(ApiClient.Create(), message => Debug.WriteLine(message)))
@@ -201,6 +202,14 @@ namespace SecureChat.Client
                     BackColor = Color.White,
                 };
 
+                box.KeyPress += (s, e) =>
+                {
+                    if (!char.IsControl(e.KeyChar) && !char.IsDigit(e.KeyChar))
+                    {
+                        e.Handled = true;
+                    }
+                };
+
                 // Khi gõ 1 ký tự vào ô hiện tại và chưa phải ô cuối(idx < 5) → tự động chuyển focus sang ô kế tiếp.
                 box.TextChanged += (s, e) =>
                 {
@@ -237,7 +246,9 @@ namespace SecureChat.Client
                 Font = TG.FontRegular(8.5f),
                 ForeColor = TG.TextSecondary,
                 BackColor = Color.Transparent,
+                Cursor = Cursors.Hand,
             };
+            _lblCountdown.Click += async (s, e) => await HandleResendOtpAsync();
             _timer = new System.Windows.Forms.Timer { Interval = 1000 }; // Timer tick mỗi 1000ms = 1 giây.
 
             // Mỗi tick: giảm đếm ngược 1, cập nhật label, dừng timer khi về 0.
@@ -315,6 +326,7 @@ namespace SecureChat.Client
             switch (step)
             {
                 case 1:
+                    _timer.Stop();
                     _resetToken = null;
                     _header.Title = "Đặt lại mật khẩu";
                     _lblStepTitle.Text = "Nhập email của bạn";
@@ -323,6 +335,7 @@ namespace SecureChat.Client
                     _btnNext.Text = "GỬI MÃ OTP";
                     break;
                 case 2:
+                    _timer.Stop();
                     _header.Title = "Nhập mã xác nhận";
                     _lblStepTitle.Text = "Kiểm tra email của bạn";
                     _lblStepDesc.Text = $"Mã 6 chữ số đã được gửi đến\n{_tbEmail.Text}";
@@ -332,6 +345,7 @@ namespace SecureChat.Client
                     _otpBoxes[0].Focus();
                     break;
                 case 3:
+                    _timer.Stop();
                     _header.Title = "Mật khẩu mới";
                     _lblStepTitle.Text = "Đặt mật khẩu mới";
                     _lblStepDesc.Text = "Mật khẩu phải có chữ hoa, chữ thường, số và ký tự đặc biệt.";
@@ -410,7 +424,7 @@ namespace SecureChat.Client
             HideError();
             try
             {
-                _btnNext.Enabled = false;
+                SetBusy(true);
                 switch (_step)
                 {
                     case 1:
@@ -431,13 +445,19 @@ namespace SecureChat.Client
             }
             finally
             {
-                _btnNext.Enabled = true;
+                SetBusy(false);
             }
         }
 
         private async Task HandleRequestOtpAsync()
         {
             var email = _tbEmail.Text.Trim();
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                ShowError("Please enter your email.");
+                return;
+            }
+
             if (!ValidationHelper.IsValidEmail(email))
             {
                 ShowError("Email is not in a valid format.");
@@ -454,6 +474,8 @@ namespace SecureChat.Client
             _lblEmailHint.Text = result.Message;
             _lblEmailHint.Visible = true;
             DoLayout(_pnlMain);
+
+            MessageBox.Show(result.Message, "SecureChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
             ShowStep(2);
         }
 
@@ -470,6 +492,17 @@ namespace SecureChat.Client
             if (!result.Success || result.Data is null)
             {
                 ShowError(result.Message);
+                if (!string.IsNullOrWhiteSpace(result.ErrorCode) && result.ErrorCode.Contains("EXPIRED"))
+                {
+                    foreach (var otpBox in _otpBoxes)
+                    {
+                        otpBox.Text = string.Empty;
+                    }
+
+                    _countdown = 0;
+                    UpdateCountdown();
+                }
+
                 return;
             }
 
@@ -506,11 +539,74 @@ namespace SecureChat.Client
             Close();
         }
 
+        private async Task HandleResendOtpAsync()
+        {
+            if (_step != 2 || _isBusy || _countdown > 0)
+            {
+                return;
+            }
+
+            HideError();
+            var email = _tbEmail.Text.Trim();
+            if (!ValidationHelper.IsValidEmail(email))
+            {
+                ShowError("Email is not in a valid format.");
+                return;
+            }
+
+            try
+            {
+                SetBusy(true);
+                var result = await _authService.RequestPasswordOtpAsync(email);
+                if (!result.Success)
+                {
+                    ShowError(result.Message);
+                    return;
+                }
+
+                foreach (var otpBox in _otpBoxes)
+                {
+                    otpBox.Text = string.Empty;
+                }
+
+                _countdown = 60;
+                _timer.Start();
+                UpdateCountdown();
+                _otpBoxes[0].Focus();
+                MessageBox.Show("A new OTP has been sent.", "SecureChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[frmForgot] Resend OTP failed: {ex}");
+                ShowError("Unable to resend OTP. Please try again.");
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
         private void UpdateCountdown()
         {
             _lblCountdown.Text = _countdown > 0
                 ? $"Không nhận được mã? Gửi lại sau ({_countdown}s)"
                 : "Không nhận được mã? Nhấn Gửi lại";
+
+            _lblCountdown.ForeColor = _countdown > 0 ? TG.TextSecondary : TG.Blue;
+        }
+
+        private void SetBusy(bool busy)
+        {
+            _isBusy = busy;
+            _btnNext.Enabled = !busy;
+            _btnNext.Text = busy ? "ĐANG XỬ LÝ..." : _step switch
+            {
+                1 => "GỬI MÃ OTP",
+                2 => "XÁC NHẬN",
+                3 => "ĐẶT LẠI MẬT KHẨU",
+                _ => "TIẾP THEO"
+            };
+            _header.ShowBack = !busy;
         }
 
         private void ShowError(string msg) { _lblError.Text = msg; _lblError.Visible = true; }

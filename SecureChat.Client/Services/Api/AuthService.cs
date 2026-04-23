@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -40,10 +41,19 @@ namespace SecureChat.Client.Services.Api
                 if (!response.IsSuccessStatusCode)
                 {
                     var error = await ReadErrorAsync(response, cancellationToken);
-                    Log($"OTP request returned status {(int)response.StatusCode}. ErrorCode={error.ErrorCode}");
+                    var code = NormalizeErrorCode(error.ErrorCode, error.Message, error.Error);
+                    var message = MapRequestOtpError(code);
+                    Log($"OTP request failed. Status={(int)response.StatusCode} Code={code}");
+                    return ServiceResult<RequestOtpResponseDto>.Fail(message, code);
                 }
 
-                var genericMessage = "If the email is registered, an OTP has been sent.";
+                var data = await response.Content.ReadFromJsonAsync<RequestOtpResponseDto>(cancellationToken: cancellationToken)
+                           ?? new RequestOtpResponseDto();
+
+                var genericMessage = string.IsNullOrWhiteSpace(data.Message)
+                    ? "If the email is registered, an OTP has been sent."
+                    : data.Message;
+
                 return ServiceResult<RequestOtpResponseDto>.Ok(
                     new RequestOtpResponseDto
                     {
@@ -76,7 +86,7 @@ namespace SecureChat.Client.Services.Api
                 return ServiceResult<VerifyOtpResponseDto>.Fail("Invalid email format.", "INVALID_EMAIL");
             }
 
-            if (string.IsNullOrWhiteSpace(otp) || otp.Length != 6)
+            if (string.IsNullOrWhiteSpace(otp) || otp.Length != 6 || !otp.All(char.IsDigit))
             {
                 return ServiceResult<VerifyOtpResponseDto>.Fail("OTP must be 6 digits.", "INVALID_OTP");
             }
@@ -191,7 +201,11 @@ namespace SecureChat.Client.Services.Api
                 return await response.Content.ReadFromJsonAsync<ApiErrorResponseDto>(cancellationToken: cancellationToken)
                        ?? new ApiErrorResponseDto();
             }
-            catch
+            catch (JsonException)
+            {
+                return new ApiErrorResponseDto();
+            }
+            catch (NotSupportedException)
             {
                 return new ApiErrorResponseDto();
             }
@@ -223,12 +237,27 @@ namespace SecureChat.Client.Services.Api
 
         private static string MapResetError(string code)
         {
+            if (code.Contains("WEAK") || code.Contains("PASSWORD"))
+            {
+                return "Password does not meet complexity requirements.";
+            }
+
             if (code.Contains("EXPIRED") || code.Contains("TOKEN"))
             {
                 return "Reset token expired or invalid. Please restart the forgot-password flow.";
             }
 
             return "Unable to reset password. Please try again.";
+        }
+
+        private static string MapRequestOtpError(string code)
+        {
+            if (code.Contains("INVALID") || code.Contains("EMAIL"))
+            {
+                return "Invalid email format.";
+            }
+
+            return "Unable to request OTP. Please try again.";
         }
 
         private void Log(string message)
