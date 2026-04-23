@@ -22,6 +22,7 @@ namespace SecureChat.Client
         private static void Main()
         {
             ApplicationConfiguration.Initialize();
+            // Application.Run(new frmSettings(new ProfileModel()));
             Application.Run(new frmLoginRegister());
         }
     }

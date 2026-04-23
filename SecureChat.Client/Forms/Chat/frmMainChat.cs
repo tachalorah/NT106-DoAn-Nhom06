@@ -10,6 +10,7 @@ using System.Windows.Forms;         // Form, Panel, Button, Label, ...
 using System.Net.Http;
 using System.Threading;
 using SecureChat.Client.Components.Chat;
+using SecureChat.Client.Forms.Profile;
 
 namespace SecureChat.Client
 {
@@ -1379,7 +1380,7 @@ namespace SecureChat.Client
             HideSettingsMenu();
             switch (label)
             {
-                case "My Profile":   /* TODO: new frmProfile().ShowDialog(this); */ break;
+                case "My Profile":    /*var myprofile = new frmMyProfile(); myprofile.ShowDialog(this); break;  */  
                 case "New Group":    /* TODO: new frmCreateGroup().ShowDialog(this); */ break;
                 case "Contacts":
                     // modal, parent = this so frmContacts.StartPosition = CenterParent works

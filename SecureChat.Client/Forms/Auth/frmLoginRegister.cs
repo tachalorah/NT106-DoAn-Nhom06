@@ -265,7 +265,8 @@ namespace SecureChat.Client
             string hashedPass = await Task.Run(() => Argon2Hasher.HashPassword(_tbPassword.Text));
 
             var req = new RegisterRequest(
-                Username: _tbEmail.Text.Split('@')[0], // Lấy phần trước @ làm username tạm
+                // Username: _tbEmail.Text.Split('@')[0], // Lấy phần trước @ làm username tạm
+                Username: GenerateRandomUsername(),
                 DisplayName: _tbDisplayName.Text,
                 Email: _tbEmail.Text,
                 HashedPassword: hashedPass,
@@ -281,6 +282,13 @@ namespace SecureChat.Client
                 SetLoginMode();
             }
             else ShowError(err);
+        }
+
+        private string GenerateRandomUsername()
+        {
+            // Cắt lấy 8 ký tự ngẫu nhiên từ GUID, kết hợp với tiền tố "user_"
+            // Kết quả ra 13 ký tự (Ví dụ: "user_1a2b3c4d"), hoàn toàn hợp lệ với MaxLength(16)
+            return "user_" + Guid.NewGuid().ToString("N").Substring(0, 8);
         }
 
         private async Task HandleLogin()
