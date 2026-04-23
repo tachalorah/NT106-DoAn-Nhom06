@@ -1,16 +1,17 @@
+using SecureChat.Client.Components.Chat;
+using SecureChat.Client.Forms.Profile;
+using SecureChat.Client.Services;
 using System;
 using System.Collections.Generic;   // List<>, Dictionary<>
 using System.Drawing;               // Color, Point, Size, Image, Bitmap
 using System.Drawing.Drawing2D;     // SmoothingMode, LinearGradientBrush
 using System.Drawing.Imaging;       // PixelFormat, ColorMatrix, ImageAttributes
 using System.IO;                    // File, Path, MemoryStream, FileSystemWatcher
+using System.Net.Http;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;       // Task.Delay (dùng cho wallpaper reload)
 using System.Windows.Forms;         // Form, Panel, Button, Label, ...
-using System.Net.Http;
-using System.Threading;
-using SecureChat.Client.Components.Chat;
-using SecureChat.Client.Forms.Profile;
 
 namespace SecureChat.Client
 {
@@ -1380,14 +1381,106 @@ namespace SecureChat.Client
             HideSettingsMenu();
             switch (label)
             {
-                case "My Profile":    /*var myprofile = new frmMyProfile(); myprofile.ShowDialog(this); break;  */  
-                case "New Group":    /* TODO: new frmCreateGroup().ShowDialog(this); */ break;
+                case "My Profile":
+                    {
+                        try
+                        {
+                            var profile = new SecureChat.Client.Models.ProfileModel
+                            {
+                                FullName = "Quack Cyber",
+                                PhoneNumber = "0123456789",
+                                Username = "Duck_Cyber",
+                                AvatarPath = string.Empty,
+                                StatusText = "online"
+                            };
+                            using var myprofile = new SecureChat.Client.Forms.Profile.frmMyProfile(profile);
+                            myprofile.StartPosition = FormStartPosition.CenterParent;
+                            myprofile.ShowDialog(this);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                        break;
+                    }
+                case "New Group":
+                    {
+                        try
+                        {
+                            using var dlg = new SecureChat.Client.Forms.Chat.frmCreateGroup();
+                            dlg.StartPosition = FormStartPosition.CenterParent;
+                            dlg.ShowDialog(this);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                        break;
+                    }
+                case "New Channel":
+                    {
+                        MessageBox.Show(this, "Create Channel feature coming soon.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        break;
+                    }
                 case "Contacts":
-                    // modal, parent = this so frmContacts.StartPosition = CenterParent works
-                    var contacts = new frmContacts();
-                    contacts.ShowDialog(this);
-                    break;
-                case "Settings":     /* TODO: new frmSettings().ShowDialog(this); */ break;
+                    {
+                        try
+                        {
+                            using var contacts = new frmContacts();
+                            contacts.StartPosition = FormStartPosition.CenterParent;
+                            contacts.ShowDialog(this);
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                        break;
+                    }
+                case "Calls":
+                    {
+                        MessageBox.Show(this, "Calls feature coming soon.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        break;
+                    }
+                case "Saved Messages":
+                    {
+                        MessageBox.Show(this, "Saved messages feature coming soon.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        break;
+                    }
+                case "Settings":
+                    {
+                        try
+                        {
+                            var profile = new SecureChat.Client.Models.ProfileModel { FullName = "Quack Cyber" };
+                            using var settings = new SecureChat.Client.Forms.Settings.frmSettings(profile);
+                            settings.StartPosition = FormStartPosition.CenterParent;
+                            var dr = settings.ShowDialog(this);
+                            if (dr == DialogResult.No)
+                            {
+                                // 1. Xóa Access Token để không gọi API được nữa
+                                ApiClient.Instance.SetAccessToken(null);
+
+                                // 2. Mở lại Form Login
+                                var loginForm = new frmLoginRegister(); // Thay bằng tên Form Login của bạn
+                                loginForm.Show();
+
+                                // 3. Đóng Form Main hiện tại
+                                this.Close();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show(this, ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        }
+                        break;
+                    }
+                    /*case "Night Mode":
+                        {
+                            bool current = _settingsToggles.TryGetValue("Night Mode", out var v) ? v : false;
+                            _settingsToggles["Night Mode"] = !current;
+                            UpdateThemeForNightMode(!current);
+                            break;
+
+                        }*/
             }
         }
 
@@ -1507,7 +1600,7 @@ namespace SecureChat.Client
                 string url = parts.Length > 0 ? parts[0] : "";
                 string fileName = parts.Length > 1 ? parts[1] : "";
                 string fileSize = parts.Length > 2 ? parts[2] : "";
-                
+
                 var panel = new Panel { BackColor = Color.Transparent };
                 var fileCtrl = new ucFileBubble
                 {
@@ -1586,7 +1679,7 @@ namespace SecureChat.Client
                 panel.PerformLayout();
                 return panel;
             }
-          
+
             var pnl = new Panel { BackColor = Color.Transparent };
 
             int pad = 12; // Padding (khoảng cách lề) bên trong bubble.
