@@ -21,7 +21,12 @@ if (connStr.Contains("Data Source=", StringComparison.OrdinalIgnoreCase)
 }
 
 builder.Services.AddDbContext<AppDbContext>(o => o.UseMySql(
-	connStr, ServerVersion.AutoDetect(connStr), my => my.EnableRetryOnFailure(maxRetryCount: 3))
+    connStr,
+	ServerVersion.AutoDetect(connStr),
+	my => {
+		my.MigrationsAssembly("SecureChat.Server");
+		my.EnableRetryOnFailure(maxRetryCount: 3);
+	})
 );
 
 builder.Services.AddScoped<UserRepository>();

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
+using System.Text.RegularExpressions;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -87,10 +88,16 @@ namespace SecureChat.Controllers
 		[HttpPost("forgot-password/request-otp")]
 		public async Task<IActionResult> RequestForgotPasswordOtp([FromBody] ForgotPasswordRequestOtpRequest req)
 		{
-			var user = await users.GetByEmailAsync(req.Email);
+          if (string.IsNullOrWhiteSpace(req.Email))
+			{
+				return BadRequest(new { message = "Invalid email format.", errorCode = "INVALID_EMAIL" });
+			}
+
+			var email = req.Email.Trim();
+			var user = await users.GetByEmailAsync(email);
 			if (user is not null)
 			{
-				await forgotPasswordService.CreateOtpAsync(req.Email);
+              await forgotPasswordService.CreateOtpAsync(email);
 			}
 
 			return Ok(new ForgotPasswordRequestOtpResponse("If the email is registered, an OTP has been sent."));
@@ -99,13 +106,26 @@ namespace SecureChat.Controllers
 		[HttpPost("forgot-password/verify-otp")]
 		public async Task<IActionResult> VerifyForgotPasswordOtp([FromBody] ForgotPasswordVerifyOtpRequest req)
 		{
-			var user = await users.GetByEmailAsync(req.Email);
+          if (string.IsNullOrWhiteSpace(req.Email))
+			{
+				return BadRequest(new { message = "Invalid email format.", errorCode = "INVALID_EMAIL" });
+			}
+
+			if (string.IsNullOrWhiteSpace(req.Otp) || req.Otp.Length != 6 || !req.Otp.All(char.IsDigit))
+			{
+				return BadRequest(new { message = "Invalid OTP.", errorCode = "INVALID_OTP" });
+			}
+
+			var email = req.Email.Trim();
+			var otp = req.Otp.Trim();
+
+			var user = await users.GetByEmailAsync(email);
 			if (user is null)
 			{
 				return BadRequest(new { message = "Invalid OTP.", errorCode = "INVALID_OTP" });
 			}
 
-			var result = await forgotPasswordService.VerifyOtpAsync(req.Email, req.Otp);
+            var result = await forgotPasswordService.VerifyOtpAsync(email, otp);
 			if (result.Status == OtpVerifyStatus.Expired)
 			{
 				return BadRequest(new { message = "OTP expired.", errorCode = "EXPIRED_OTP" });
@@ -122,6 +142,16 @@ namespace SecureChat.Controllers
 		[HttpPost("forgot-password/reset")]
 		public async Task<IActionResult> ResetForgotPassword([FromBody] ForgotPasswordResetRequest req)
 		{
+          if (string.IsNullOrWhiteSpace(req.ResetToken))
+			{
+				return BadRequest(new { message = "Invalid reset token.", errorCode = "INVALID_TOKEN" });
+			}
+
+			if (!IsStrongPassword(req.NewPassword))
+			{
+				return BadRequest(new { message = "Password does not meet complexity requirements.", errorCode = "WEAK_PASSWORD" });
+			}
+
 			var tokenResult = await forgotPasswordService.ValidateResetTokenAsync(req.ResetToken);
 			if (tokenResult.Status == ResetTokenStatus.Expired)
 			{
@@ -141,7 +171,21 @@ namespace SecureChat.Controllers
 			}
 
 			await users.UpdateHashedPasswordOnlyAsync(user.UserID, req.NewPassword);
+           logger.LogInformation("Forgot-password reset completed for user {UserID}", user.UserID);
 			return Ok(new ForgotPasswordResetResponse("Password reset successful."));
+		}
+
+		private static bool IsStrongPassword(string? password)
+		{
+			if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
+			{
+				return false;
+			}
+
+			return Regex.IsMatch(password, "[A-Z]")
+				&& Regex.IsMatch(password, "[a-z]")
+				&& Regex.IsMatch(password, "[0-9]")
+				&& Regex.IsMatch(password, "[^a-zA-Z0-9]");
 		}
 
 		[Authorize]
