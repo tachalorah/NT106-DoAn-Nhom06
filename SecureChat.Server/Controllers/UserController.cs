@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SecureChat.DTOs;
 using SecureChat.Repositories;
+using SecureChat.Server.Security;
 
 namespace SecureChat.Controllers
 {
@@ -60,10 +61,10 @@ namespace SecureChat.Controllers
 			if (user is null)
 				return NotFound();
 
-			if (user.HashedPassword != req.OldHashedPassword)
+			if (!PasswordHasher.Verify(req.OldHashedPassword, user.HashedPassword))
 				return BadRequest(new { error = "Mật khẩu cũ không trùng khớp." });
 
-			await users.UpdateHashedPasswordAsync(Me, req.NewHashedPassword, req.NewHashedBKey, req.NewKeySalt);
+			await users.UpdateHashedPasswordAsync(Me, PasswordHasher.NormalizeForStorage(req.NewHashedPassword), req.NewHashedBKey, req.NewKeySalt);
 			user.PublicKey = req.NewPublicKey;
 			await users.UpdateAsync(user);
 

@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
+using System.Text.RegularExpressions;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,13 +9,14 @@ using Microsoft.Extensions.Configuration;
 using SecureChat.DTOs;
 using SecureChat.Models;
 using SecureChat.Repositories;
+using SecureChat.Server.Security;
 using SecureChat.Services;
 
 namespace SecureChat.Controllers
 {
 	[ApiController]
 	[Route("api/auth")]
-	public class AuthController(UserRepository users, TokenService tokens, IConfiguration config) : BaseController
+  public class AuthController(UserRepository users, TokenService tokens, IConfiguration config, ForgotPasswordService forgotPasswordService, ILogger<AuthController> logger) : BaseController
 	{
 		[HttpPost("register")]
 		public async Task<IActionResult> Register([FromBody] RegisterRequest req)
@@ -29,7 +31,7 @@ namespace SecureChat.Controllers
 				Username = req.Username,
 				DisplayName = req.DisplayName,
 				Email = req.Email,
-				HashedPassword = req.HashedPassword,
+				HashedPassword = PasswordHasher.NormalizeForStorage(req.HashedPassword),
 				HashedBKey = req.HashedBKey,
 				KeySalt = req.KeySalt,
 				PublicKey = req.PublicKey
@@ -45,7 +47,7 @@ namespace SecureChat.Controllers
 				? await users.GetByEmailAsync(req.UsernameOrEmail)
 				: await users.GetByUsernameAsync(req.UsernameOrEmail);
 
-			if (user is null || user.HashedPassword != req.HashedPassword)
+			if (user is null || !PasswordHasher.Verify(req.HashedPassword, user.HashedPassword))
 				return Unauthorized(new { error = "Thông tin đăng nhập không hợp lệ." });
 
 			var sessionID = NewID();
@@ -82,6 +84,109 @@ namespace SecureChat.Controllers
 
 			await users.UpdateSessionAsync(session.SessionID, req.RefreshToken, newExpiry);
 			return Ok(new AuthResponse(newAccess, req.RefreshToken, newExpiry, UserResponse.From(session.User)));
+		}
+
+		[HttpPost("forgot-password/request-otp")]
+		public async Task<IActionResult> RequestForgotPasswordOtp([FromBody] ForgotPasswordRequestOtpRequest req)
+		{
+          if (string.IsNullOrWhiteSpace(req.Email))
+			{
+				return BadRequest(new { message = "Invalid email format.", errorCode = "INVALID_EMAIL" });
+			}
+
+			var email = req.Email.Trim();
+			var user = await users.GetByEmailAsync(email);
+			if (user is not null)
+			{
+              await forgotPasswordService.CreateOtpAsync(email);
+			}
+
+			return Ok(new ForgotPasswordRequestOtpResponse("If the email is registered, an OTP has been sent."));
+		}
+
+		[HttpPost("forgot-password/verify-otp")]
+		public async Task<IActionResult> VerifyForgotPasswordOtp([FromBody] ForgotPasswordVerifyOtpRequest req)
+		{
+          if (string.IsNullOrWhiteSpace(req.Email))
+			{
+				return BadRequest(new { message = "Invalid email format.", errorCode = "INVALID_EMAIL" });
+			}
+
+			if (string.IsNullOrWhiteSpace(req.Otp) || req.Otp.Length != 6 || !req.Otp.All(char.IsDigit))
+			{
+				return BadRequest(new { message = "Invalid OTP.", errorCode = "INVALID_OTP" });
+			}
+
+			var email = req.Email.Trim();
+			var otp = req.Otp.Trim();
+
+			var user = await users.GetByEmailAsync(email);
+			if (user is null)
+			{
+				return BadRequest(new { message = "Invalid OTP.", errorCode = "INVALID_OTP" });
+			}
+
+            var result = await forgotPasswordService.VerifyOtpAsync(email, otp);
+			if (result.Status == OtpVerifyStatus.Expired)
+			{
+				return BadRequest(new { message = "OTP expired.", errorCode = "EXPIRED_OTP" });
+			}
+
+			if (result.Status != OtpVerifyStatus.Success || string.IsNullOrWhiteSpace(result.ResetToken))
+			{
+				return BadRequest(new { message = "Invalid OTP.", errorCode = "INVALID_OTP" });
+			}
+
+			return Ok(new ForgotPasswordVerifyOtpResponse("OTP verified.", result.ResetToken));
+		}
+
+		[HttpPost("forgot-password/reset")]
+		public async Task<IActionResult> ResetForgotPassword([FromBody] ForgotPasswordResetRequest req)
+		{
+          if (string.IsNullOrWhiteSpace(req.ResetToken))
+			{
+				return BadRequest(new { message = "Invalid reset token.", errorCode = "INVALID_TOKEN" });
+			}
+
+			if (!IsStrongPassword(req.NewPassword))
+			{
+				return BadRequest(new { message = "Password does not meet complexity requirements.", errorCode = "WEAK_PASSWORD" });
+			}
+
+			var tokenResult = await forgotPasswordService.ValidateResetTokenAsync(req.ResetToken);
+			if (tokenResult.Status == ResetTokenStatus.Expired)
+			{
+				return BadRequest(new { message = "Reset token expired.", errorCode = "EXPIRED_TOKEN" });
+			}
+
+			if (tokenResult.Status != ResetTokenStatus.Valid || string.IsNullOrWhiteSpace(tokenResult.Email))
+			{
+				return BadRequest(new { message = "Invalid reset token.", errorCode = "INVALID_TOKEN" });
+			}
+
+			var user = await users.GetByEmailAsync(tokenResult.Email);
+			if (user is null)
+			{
+				logger.LogWarning("Forgot-password reset skipped: user not found for email {Email}", tokenResult.Email);
+				return BadRequest(new { message = "Invalid reset token.", errorCode = "INVALID_TOKEN" });
+			}
+
+			await users.UpdateHashedPasswordOnlyAsync(user.UserID, PasswordHasher.NormalizeForStorage(req.NewPassword));
+           logger.LogInformation("Forgot-password reset completed for user {UserID}", user.UserID);
+			return Ok(new ForgotPasswordResetResponse("Password reset successful."));
+		}
+
+		private static bool IsStrongPassword(string? password)
+		{
+			if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
+			{
+				return false;
+			}
+
+			return Regex.IsMatch(password, "[A-Z]")
+				&& Regex.IsMatch(password, "[a-z]")
+				&& Regex.IsMatch(password, "[0-9]")
+				&& Regex.IsMatch(password, "[^a-zA-Z0-9]");
 		}
 
 		[Authorize]

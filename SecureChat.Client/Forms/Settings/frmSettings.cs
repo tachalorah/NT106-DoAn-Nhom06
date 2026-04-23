@@ -1,11 +1,13 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using SecureChat.Client.Forms.Profile;
 using SecureChat.Client.Models;
+using SecureChat.Client.Services;
 
 namespace SecureChat.Client.Forms.Settings
 {
@@ -75,6 +77,21 @@ namespace SecureChat.Client.Forms.Settings
             AddMenuItem(ref y, "Advanced", "advanced.png", OpenAdvanced);
             AddMenuItem(ref y, "Speakers and Camera", "devices.png", OpenSpeakersCamera);
             AddMenuItem(ref y, "Language", "language.png", OpenLanguage, true, LanguagePrefs.GetDisplayLanguageName(), lbl => _lblLanguageMenu = lbl);
+
+            // Add separator before logout
+            y += 8;
+            var logoutSeparator = new Panel
+            {
+                Location = new Point(0, y),
+                Size = new Size(ClientSize.Width, 1),
+                BackColor = C_SEPARATOR,
+                Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top
+            };
+            _root.Controls.Add(logoutSeparator);
+            y += 1;
+
+            // Add logout button with emoji
+            AddMenuItem(ref y, "🔓 Logout", "", OnLogout);
 
             UiLocalization.ApplyToForm(this);
         }
@@ -199,32 +216,39 @@ namespace SecureChat.Client.Forms.Settings
             panel.MouseLeave += (_, __) => panel.BackColor = C_BG;
             panel.Click += (_, __) => onClick();
 
-            var icon = new PictureBox
+            int labelX = 20; // Default position if no icon
+            
+            // Only add icon if iconFile is not empty
+            if (!string.IsNullOrEmpty(iconFile))
             {
-                Size = new Size(24, 24),
-                Location = new Point(20, (ITEM_HEIGHT - 24) / 2),
-                SizeMode = PictureBoxSizeMode.Zoom,
-                Image = SettingsGlyphIcons.Create(iconFile, 24),
-                BackColor = Color.Transparent
-            };
-            icon.MouseEnter += (_, __) => panel.BackColor = C_HOVER;
-            icon.MouseLeave += (_, __) => panel.BackColor = C_BG;
-            icon.Click += (_, __) => onClick();
+                var icon = new PictureBox
+                {
+                    Size = new Size(24, 24),
+                    Location = new Point(20, (ITEM_HEIGHT - 24) / 2),
+                    SizeMode = PictureBoxSizeMode.Zoom,
+                    Image = SettingsGlyphIcons.Create(iconFile, 24),
+                    BackColor = Color.Transparent
+                };
+                icon.MouseEnter += (_, __) => panel.BackColor = C_HOVER;
+                icon.MouseLeave += (_, __) => panel.BackColor = C_BG;
+                icon.Click += (_, __) => onClick();
+                panel.Controls.Add(icon);
+                labelX = 68; // Position after icon
+            }
 
             var lbl = new Label
             {
                 Text = text,
-                Font = TG.FontRegular(12.2f),
-                ForeColor = C_TEXT,
+                Font = text.Contains("🔓") ? TG.FontSemiBold(12.2f) : TG.FontRegular(12.2f),
+                ForeColor = text.Contains("🔓") ? Color.FromArgb(0xE7, 0x2C, 0x3C) : C_TEXT, // Red for logout
                 AutoSize = true,
-                Location = new Point(68, (ITEM_HEIGHT - 22) / 2),
+                Location = new Point(labelX, (ITEM_HEIGHT - 22) / 2),
                 BackColor = Color.Transparent
             };
             lbl.MouseEnter += (_, __) => panel.BackColor = C_HOVER;
             lbl.MouseLeave += (_, __) => panel.BackColor = C_BG;
             lbl.Click += (_, __) => onClick();
 
-            panel.Controls.Add(icon);
             panel.Controls.Add(lbl);
 
             if (showExtraText)
@@ -313,6 +337,44 @@ namespace SecureChat.Client.Forms.Settings
             if (dlg.ShowDialog(this) == DialogResult.OK && _lblLanguageMenu != null)
             {
                 _lblLanguageMenu.Text = LanguagePrefs.GetDisplayLanguageName();
+            }
+        }
+
+        private async void OnLogout()
+        {
+            var confirmResult = MessageBox.Show(
+                this,
+                "Are you sure you want to logout?",
+                "Confirm Logout",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (confirmResult != DialogResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                // Disable logout button to prevent double-click
+                Enabled = false;
+
+                // Call logout API
+                await ApiClient.Instance.LogoutAsync();
+
+                // Close this form and signal logout
+                DialogResult = DialogResult.No; // Special value to signal logout
+                Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    this,
+                    $"Logout error: {ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                Enabled = true;
             }
         }
 

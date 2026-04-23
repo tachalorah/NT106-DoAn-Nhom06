@@ -9,6 +9,7 @@ namespace SecureChat.Client.Services
 {
     public class ApiClient
     {
+        private const string DefaultBaseUrl = "http://localhost:5097/";
         private readonly HttpClient _httpClient;
         private static ApiClient _instance;
 
@@ -19,8 +20,24 @@ namespace SecureChat.Client.Services
         {
             _httpClient = new HttpClient
             {
-                BaseAddress = new Uri("http://localhost:5097/") // Đổi theo cổng của Back-end
+                BaseAddress = new Uri(ResolveBaseUrl())
             };
+        }
+
+        public static HttpClient Create(string? baseUrl = null)
+        {
+            var resolvedBaseUrl = ResolveBaseUrl(baseUrl);
+            return new HttpClient
+            {
+                BaseAddress = new Uri(resolvedBaseUrl, UriKind.Absolute)
+            };
+        }
+
+        private static string ResolveBaseUrl(string? overrideBaseUrl = null)
+        {
+            return overrideBaseUrl
+                ?? Environment.GetEnvironmentVariable("SECURECHAT_API_BASE_URL")
+                ?? DefaultBaseUrl;
         }
 
         // Lưu JWT Token vào Header cho các request cần xác thực (Chat, Lấy danh sách bạn bè...)
@@ -32,6 +49,26 @@ namespace SecureChat.Client.Services
         public void ClearToken()
         {
             _httpClient.DefaultRequestHeaders.Authorization = null;
+        }
+
+        // Attempts to notify server of logout (DELETE /api/auth/logout) and clears the local token.
+        // This method never throws; failures are logged internally via return value.
+        public async Task<bool> LogoutAsync()
+        {
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Delete, "api/auth/logout");
+                var response = await _httpClient.SendAsync(request);
+                // Regardless of response, clear local authorization header
+                ClearToken();
+                return response.IsSuccessStatusCode;
+            }
+            catch
+            {
+                // network errors or other issues - still clear local token to ensure user is logged out locally
+                ClearToken();
+                return false;
+            }
         }
 
         // Base hàm POST
