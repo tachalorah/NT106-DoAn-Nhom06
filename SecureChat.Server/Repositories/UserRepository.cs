@@ -55,6 +55,15 @@ namespace SecureChat.Repositories
 			await db.SaveChangesAsync();
 		}
 
+		public async Task UpdateHashedPasswordOnlyAsync(string userID, string newHashedPassword)
+		{
+			var user = await db.Users.FindAsync(userID)
+				?? throw new KeyNotFoundException($"Không tìm thấy người dùng {userID}.");
+			user.HashedPassword = newHashedPassword;
+			user.UpdatedAt = DateTime.UtcNow;
+			await db.SaveChangesAsync();
+		}
+
 		public async Task UpdateAvatarAsync(string userID, string? avatarURL)
 		{
 			var user = await db.Users.FindAsync(userID)

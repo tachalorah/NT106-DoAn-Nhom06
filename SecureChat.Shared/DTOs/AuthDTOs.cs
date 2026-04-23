@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace SecureChat.DTOs
 {
 	public record RegisterRequest(
-		[Required, MinLength(3), MaxLength(16)] string Username,
+		[Required, MinLength(3), MaxLength(64)] string Username,
 		[Required, MaxLength(32)] string DisplayName,
 		[Required, EmailAddress, MaxLength(64)] string Email,
 		[Required] string HashedPassword,
@@ -28,4 +28,24 @@ namespace SecureChat.DTOs
 		DateTime ExpiresAt,
 		UserResponse User
 	);
+
+	public record ForgotPasswordRequestOtpRequest(
+		[Required, EmailAddress, MaxLength(64)] string Email
+	);
+
+	public record ForgotPasswordRequestOtpResponse(string Message);
+
+	public record ForgotPasswordVerifyOtpRequest(
+		[Required, EmailAddress, MaxLength(64)] string Email,
+		[Required, MinLength(6), MaxLength(6)] string Otp
+	);
+
+	public record ForgotPasswordVerifyOtpResponse(string Message, string ResetToken);
+
+	public record ForgotPasswordResetRequest(
+		[Required] string ResetToken,
+		[Required, MinLength(8)] string NewPassword
+	);
+
+	public record ForgotPasswordResetResponse(string Message);
 }
