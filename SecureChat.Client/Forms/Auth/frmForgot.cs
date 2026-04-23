@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 using SecureChat.Client.Helpers;
+using SecureChat.Client.Services;
 using SecureChat.Client.Services.Api;
 
 namespace SecureChat.Client

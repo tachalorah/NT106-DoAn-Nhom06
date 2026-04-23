@@ -262,15 +262,15 @@ namespace SecureChat.Client
 
             // Cryptography (chạy Task.Run để không lag UI)
             var keys = await Task.Run(() => RSAKeyManager.GenerateRSAKeys());
-            string hashedPass = await Task.Run(() => Argon2Hasher.HashPassword(_tbPassword.Text));
+            string passwordForServer = _tbPassword.Text;
 
             var req = new RegisterRequest(
-                Username: _tbEmail.Text.Split('@')[0], // Lấy phần trước @ làm username tạm
+                Username: GenerateRandomUsername(),
                 DisplayName: _tbDisplayName.Text,
                 Email: _tbEmail.Text,
-                HashedPassword: hashedPass,
+                HashedPassword: passwordForServer,
                 HashedBKey: "TBD",
-                KeySalt: hashedPass.Split(':')[0],
+                KeySalt: "TBD",
                 PublicKey: keys.PublicKey
             );
 
@@ -283,21 +283,25 @@ namespace SecureChat.Client
             else ShowError(err);
         }
 
+        private string GenerateRandomUsername()
+        {
+            // Cắt lấy 8 ký tự ngẫu nhiên từ GUID, kết hợp với tiền tố "user_"
+            // Kết quả ra 13 ký tự (Ví dụ: "user_1a2b3c4d"), hoàn toàn hợp lệ với MaxLength(16)
+            return "user_" + Guid.NewGuid().ToString("N").Substring(0, 8);
+        }
+
         private async Task HandleLogin()
         {
             if (string.IsNullOrWhiteSpace(_tbEmail.Text)) { ShowError("Vui lòng nhập Email."); return; }
 
-            // LƯU Ý: Trong thực tế, bạn cần lấy Salt từ Server trước khi Hash ở bước Login
-            string hashedPass = await Task.Run(() => Argon2Hasher.HashPassword(_tbPassword.Text));
-
-            var req = new LoginRequest(_tbEmail.Text, hashedPass, Environment.MachineName);
+            var req = new LoginRequest(_tbEmail.Text, _tbPassword.Text, Environment.MachineName);
             var (ok, res, err) = await ApiClient.Instance.PostAsync<LoginRequest, AuthResponse>("api/auth/login", req);
 
             if (ok && res != null)
             {
                 ApiClient.Instance.SetAccessToken(res.AccessToken);
-                new frmMainChat().Show();
-                this.Hide();
+                DialogResult = DialogResult.OK;
+                Close();
             }
             else ShowError(err);
         }
