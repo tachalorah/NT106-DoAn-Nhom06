@@ -22,7 +22,7 @@ namespace SecureChat.Client
         private static void Main()
         {
             ApplicationConfiguration.Initialize();
-            Application.Run(new frmForgot());
+            Application.Run(new frmLoginRegister());
         }
     }
 }
