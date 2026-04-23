@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using SecureChat.DTOs;
 using SecureChat.Models;
 using SecureChat.Repositories;
+using SecureChat.Server.Security;
 using SecureChat.Services;
 
 namespace SecureChat.Controllers
@@ -30,7 +31,7 @@ namespace SecureChat.Controllers
 				Username = req.Username,
 				DisplayName = req.DisplayName,
 				Email = req.Email,
-				HashedPassword = req.HashedPassword,
+				HashedPassword = PasswordHasher.NormalizeForStorage(req.HashedPassword),
 				HashedBKey = req.HashedBKey,
 				KeySalt = req.KeySalt,
 				PublicKey = req.PublicKey
@@ -46,7 +47,7 @@ namespace SecureChat.Controllers
 				? await users.GetByEmailAsync(req.UsernameOrEmail)
 				: await users.GetByUsernameAsync(req.UsernameOrEmail);
 
-			if (user is null || user.HashedPassword != req.HashedPassword)
+			if (user is null || !PasswordHasher.Verify(req.HashedPassword, user.HashedPassword))
 				return Unauthorized(new { error = "Thông tin đăng nhập không hợp lệ." });
 
 			var sessionID = NewID();
@@ -170,7 +171,7 @@ namespace SecureChat.Controllers
 				return BadRequest(new { message = "Invalid reset token.", errorCode = "INVALID_TOKEN" });
 			}
 
-			await users.UpdateHashedPasswordOnlyAsync(user.UserID, req.NewPassword);
+			await users.UpdateHashedPasswordOnlyAsync(user.UserID, PasswordHasher.NormalizeForStorage(req.NewPassword));
            logger.LogInformation("Forgot-password reset completed for user {UserID}", user.UserID);
 			return Ok(new ForgotPasswordResetResponse("Password reset successful."));
 		}
