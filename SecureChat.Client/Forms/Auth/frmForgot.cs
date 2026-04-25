@@ -260,12 +260,12 @@ namespace SecureChat.Client
             var lblNew = new Label { Text = "Mật khẩu mới:", Font = TG.FontRegular(8.5f), ForeColor = TG.Blue, AutoSize = false, Height = 18, BackColor = Color.Transparent };
             _tbNewPass = new TelegramTextBox { Height = 44 };
             _tbNewPass.SetPlaceholder("Ít nhất 8 ký tự...");
-            _tbNewPass.PasswordChar = '●';
+            _tbNewPass.PasswordCharValue = '●';
 
             var lblConf = new Label { Text = "Xác nhận mật khẩu mới:", Font = TG.FontRegular(8.5f), ForeColor = TG.Blue, AutoSize = false, Height = 18, BackColor = Color.Transparent };
             _tbConfirmPass = new TelegramTextBox { Height = 44 };
             _tbConfirmPass.SetPlaceholder("Nhập lại mật khẩu...");
-            _tbConfirmPass.PasswordChar = '●';
+            _tbConfirmPass.PasswordCharValue = '●';
 
             // Error
             _lblError = new Label

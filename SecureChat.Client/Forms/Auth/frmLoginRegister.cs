@@ -101,11 +101,11 @@ namespace SecureChat.Client
             _tbEmail.SetPlaceholder("example@email.com");
 
             _lblPassword = MakeFieldLabel("Mật khẩu");
-            _tbPassword = new TelegramTextBox { Height = 44, PasswordChar = '●' };
+            _tbPassword = new TelegramTextBox { Height = 44, PasswordCharValue = '●' };
             _tbPassword.SetPlaceholder("Nhập mật khẩu...");
 
             _lblConfirmPass = MakeFieldLabel("Xác nhận mật khẩu");
-            _tbConfirmPass = new TelegramTextBox { Height = 44, PasswordChar = '●' };
+            _tbConfirmPass = new TelegramTextBox { Height = 44, PasswordCharValue = '●' };
             _tbConfirmPass.SetPlaceholder("Nhập lại mật khẩu...");
 
             _lblError = new Label
