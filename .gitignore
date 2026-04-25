@@ -416,3 +416,11 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+# Chặn file appsettings chính
+SecureChat.Server/appsettings.json
+
+# Chặn file appsettings môi trường development
+SecureChat.Server/appsettings.Development.json
+
+# Nếu bạn muốn chặn tất cả các file appsettings có đuôi .json
+SecureChat.Server/appsettings*.json

@@ -15,7 +15,6 @@ namespace SecureChat.Client.Security
         /// </summary>
         public static string HashPassword(string password)
         {
-            // ✅ FIX: Sinh random salt 16 bytes cho mỗi password (không dùng hardcoded salt)
             byte[] saltBytes = new byte[16];
             using (var rng = new RNGCryptoServiceProvider())
             {
@@ -32,7 +31,7 @@ namespace SecureChat.Client.Security
 
             byte[] hashBytes = argon2.GetBytes(32); // Lấy ra 32 byte mã băm
 
-            // ✅ FIX: Trả về salt + hash cách nhau bởi ':' để có thể verify sau
+            // FIX: Trả về salt + hash cách nhau bởi ':' để có thể verify sau
             // Format: "salt_base64:hash_base64"
             string saltBase64 = Convert.ToBase64String(saltBytes);
             string hashBase64 = Convert.ToBase64String(hashBytes);

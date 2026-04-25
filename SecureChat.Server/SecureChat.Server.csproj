@@ -24,7 +24,6 @@
     <Folder Include="Hubs\" />
     <Folder Include="Models\" />
     <Folder Include="DTOs\" />
-    <Folder Include="Data\" />
     <Folder Include="wwwroot\Uploads\" />
   </ItemGroup>
 

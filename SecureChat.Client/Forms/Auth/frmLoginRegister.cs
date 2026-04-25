@@ -101,11 +101,11 @@ namespace SecureChat.Client
             _tbEmail.SetPlaceholder("example@email.com");
 
             _lblPassword = MakeFieldLabel("Mật khẩu");
-            _tbPassword = new TelegramTextBox { Height = 44, PasswordChar = '●' };
+            _tbPassword = new TelegramTextBox { Height = 44, PasswordCharValue = '●' };
             _tbPassword.SetPlaceholder("Nhập mật khẩu...");
 
             _lblConfirmPass = MakeFieldLabel("Xác nhận mật khẩu");
-            _tbConfirmPass = new TelegramTextBox { Height = 44, PasswordChar = '●' };
+            _tbConfirmPass = new TelegramTextBox { Height = 44, PasswordCharValue = '●' };
             _tbConfirmPass.SetPlaceholder("Nhập lại mật khẩu...");
 
             _lblError = new Label
@@ -143,6 +143,7 @@ namespace SecureChat.Client
                 Font = TG.FontRegular(9f),
                 AutoSize = true
             };
+            _lnkForgot.LinkClicked += LnkForgot_LinkClicked;
 
             _pnlCard.Controls.AddRange(new Control[] {
                 _lblDisplayName, _tbDisplayName,
@@ -156,6 +157,22 @@ namespace SecureChat.Client
 
             this.Resize += (s, e) => DoLayout();
             this.Load += (s, e) => SetLoginMode();
+        }
+
+        // add this new handler method in the frmLoginRegister class (near other event handlers)
+        private void LnkForgot_LinkClicked(object? sender, LinkLabelLinkClickedEventArgs e)
+        {
+            try
+            {
+                using var dlg = new frmForgot();
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.ShowDialog(this);
+                // Optionally, respond to dlg results (e.g., show a toast or switch mode)
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"Unable to open Forgot Password: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private Label MakeFieldLabel(string text) => new Label
@@ -265,6 +282,7 @@ namespace SecureChat.Client
             string passwordForServer = _tbPassword.Text;
 
             var req = new RegisterRequest(
+                // Username: _tbEmail.Text.Split('@')[0], // Lấy phần trước @ làm username tạm
                 Username: GenerateRandomUsername(),
                 DisplayName: _tbDisplayName.Text,
                 Email: _tbEmail.Text,
@@ -300,8 +318,8 @@ namespace SecureChat.Client
             if (ok && res != null)
             {
                 ApiClient.Instance.SetAccessToken(res.AccessToken);
-                DialogResult = DialogResult.OK;
-                Close();
+                new frmMainChat().Show();
+                this.Hide();
             }
             else ShowError(err);
         }

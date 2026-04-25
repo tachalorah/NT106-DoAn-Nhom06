@@ -260,6 +260,8 @@ namespace SecureChat.Client
         private string? _placeholder;
         private bool _isFocused;
         private Label _placeholderLabel = null!;
+        private Button _btnTogglePassword = null!;
+        private bool _isPasswordVisible = false;
 
         public new string Text { get => _tb.Text; set => _tb.Text = value; }
         public char PasswordChar { get => _tb.PasswordChar; set => _tb.PasswordChar = value; }
@@ -296,8 +298,28 @@ namespace SecureChat.Client
             };
             _placeholderLabel.Click += (s, e) => _tb.Focus();
 
+            // Nút toggle hiện/ẩn mật khẩu
+            _btnTogglePassword = new Button
+            {
+                BackColor = Color.Transparent,
+                FlatStyle = FlatStyle.Flat,
+                FlatAppearance = { BorderSize = 0 },
+                Cursor = Cursors.Hand,
+                Font = TG.FontRegular(11f),
+                ForeColor = TG.TextHint,
+                Width = 40,
+                Height = 44,
+                Dock = DockStyle.Right,
+                Visible = false,
+                TextAlign = ContentAlignment.MiddleCenter,
+            };
+            _btnTogglePassword.Click += (s, e) => TogglePasswordVisibility();
+            _btnTogglePassword.MouseEnter += (s, e) => _btnTogglePassword.ForeColor = TG.TextPrimary;
+            _btnTogglePassword.MouseLeave += (s, e) => _btnTogglePassword.ForeColor = TG.TextHint;
+
             Controls.Add(_tb);
             Controls.Add(_placeholderLabel);
+            Controls.Add(_btnTogglePassword);
             _placeholderLabel.BringToFront();
 
             _tb.GotFocus += (s, e) => { _isFocused = true; Invalidate(); UpdatePlaceholder(); };
@@ -318,6 +340,31 @@ namespace SecureChat.Client
             _placeholderLabel.Visible = string.IsNullOrEmpty(_tb.Text);
         }
 
+        private void TogglePasswordVisibility()
+        {
+            _isPasswordVisible = !_isPasswordVisible;
+            _tb.PasswordChar = _isPasswordVisible ? '\0' : _tb.PasswordChar;
+            UpdatePasswordToggleButton();
+        }
+
+        private void UpdatePasswordToggleButton()
+        {
+            _btnTogglePassword.Text = _isPasswordVisible ? "👁" : "👁‍🗨";
+        }
+
+        // Ghi đè PasswordChar để tự động hiển thị/ẩn nút mắt
+        public char PasswordCharValue
+        {
+            get => _tb.PasswordChar;
+            set
+            {
+                _tb.PasswordChar = value;
+                _btnTogglePassword.Visible = (value != '\0');
+                _isPasswordVisible = (value == '\0');
+                UpdatePasswordToggleButton();
+            }
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -336,7 +383,8 @@ namespace SecureChat.Client
 
             int pad = 12;
             int tbHeight = _tb.PreferredHeight;
-            _tb.SetBounds(pad, (Height - tbHeight) / 2, Width - pad * 2, tbHeight);
+            int textboxWidth = _btnTogglePassword.Visible ? Width - pad * 2 - 40 : Width - pad * 2;
+            _tb.SetBounds(pad, (Height - tbHeight) / 2, textboxWidth, tbHeight);
             _placeholderLabel.SetBounds(0, 0, Width, Height);
         }
     }

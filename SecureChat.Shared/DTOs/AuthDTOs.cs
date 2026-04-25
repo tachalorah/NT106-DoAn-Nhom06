@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace SecureChat.DTOs
 {
 	public record RegisterRequest(
-		[Required, MinLength(3), MaxLength(64)] string Username,
+		[Required, MinLength(3), MaxLength(16)] string Username,
 		[Required, MaxLength(32)] string DisplayName,
 		[Required, EmailAddress, MaxLength(64)] string Email,
 		[Required] string HashedPassword,
