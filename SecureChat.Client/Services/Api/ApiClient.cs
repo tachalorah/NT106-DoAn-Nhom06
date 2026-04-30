@@ -96,5 +96,23 @@ namespace SecureChat.Client.Services
                 return (false, default, $"Không thể kết nối máy chủ: {ex.Message}");
             }
         }
+
+        public async Task<(bool IsSuccess, string ErrorMessage)> DeleteAsync(string endpoint)
+        {
+            try
+            {
+                var response = await _httpClient.DeleteAsync(endpoint);
+                if (response.IsSuccessStatusCode)
+                {
+                    return (true, string.Empty);
+                }
+                var error = await response.Content.ReadAsStringAsync();
+                return (false, $"Lỗi server: {error}");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"Không thể kết nối máy chủ: {ex.Message}");
+            }
+        }
     }
 }

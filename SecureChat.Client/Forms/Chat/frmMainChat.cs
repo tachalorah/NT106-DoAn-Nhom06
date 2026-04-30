@@ -1,6 +1,8 @@
 using SecureChat.Client.Components.Chat;
 using SecureChat.Client.Forms.Profile;
 using SecureChat.Client.Services;
+using SecureChat.DTOs;
+using SecureChat.Models;
 using System;
 using System.Collections.Generic;   // List<>, Dictionary<>
 using System.Drawing;               // Color, Point, Size, Image, Bitmap
@@ -53,6 +55,10 @@ namespace SecureChat.Client
         private bool _notificationsSoundEnabled = true;
         private DateTime? _muteUntilUtc;
 
+        private Panel _pnlReplyContext;
+        private Label _lblReplySender;
+        private Label _lblReplyText;
+
 
         // ── Settings menu controls ─────────────────
         private Panel _pnlSettingsHeader;
@@ -86,38 +92,42 @@ namespace SecureChat.Client
         */
 
         // Key = convId, Value = danh sách tin nhắn của conversation đó
-        private readonly Dictionary<string, List<(string Text, bool Out, string Time, string Sender)>> _allMsgs = new()
+        // Thêm biến lưu trạng thái trả lời tin nhắn
+        private string _replyingToMessageId = null;
+
+        // Khai báo Dictionary với Tuple 5 tham số (Thêm Id ở đầu)
+        private readonly Dictionary<string, List<(string Id, string Text, bool Out, string Time, string Sender)>> _allMsgs = new()
         {
             ["1"] = new()
     {
-        ("Hello hello hello!",                                                                       false, "12:51 PM", "Hang Hieu"),
-        ("Tuấn Thành you've been removed from the group chat",                                       false, "1:01 PM",  "Bot"),
-        ("Quack Cyber added Sim 18a3",                                                               false, "10:10 PM", "Bot"),
-        ("Tuấn Thành, you've been wonderful friends for so long. I could never imagine you doing this to me.", true, "10:15 PM", ""),
-        ("Search it",                                                                                 true,  "10:16 PM", ""),
-        ("file::abcdef::abcdef::14.5 KB",            false, "1:57 AM",   "Bot")
+        ("msg_1", "Hello hello hello!", false, "12:51 PM", "Hang Hieu"),
+        ("msg_2", "Tuấn Thành you've been removed from the group chat", false, "1:01 PM", "Bot"),
+        ("msg_3", "Quack Cyber added Sim 18a3", false, "10:10 PM", "Bot"),
+        ("msg_4", "Tuấn Thành, you've been wonderful friends for so long. I could never imagine you doing this to me.", true, "10:15 PM", ""),
+        ("msg_5", "Search it", true, "10:16 PM", ""),
+        ("msg_6", "file::abcdef::abcdef::14.5 KB", false, "1:57 AM", "Bot")
     },
-            ["2"] = new()   // group chat NT106
+            ["2"] = new()
     {
-        ("ê mấy ông ơi nộp bài chưa",          false, "8:28 AM", "Hang Hieu"),
-        ("chưa ông ơi",                          false, "8:29 AM", "Tuấn Thành"),
-        ("add new contact á",                    false, "8:29 AM", "Hang Hieu"),
-        ("tui vừa làm với ô đó",                 false, "8:30 AM", "Hang Hieu"),
-        ("nó tự chấp nhận kb luôn mà",           true,  "8:30 AM", ""),
-        ("af af",                                false, "8:31 AM", "Hang Hieu"),
-        ("oke chút nữa tui push lên",            true,  "8:32 AM", ""),
-        ("ừ nhanh lên nha còn test",             false, "8:33 AM", "Tuấn Thành"),
+        ("msg_7", "ê mấy ông ơi nộp bài chưa", false, "8:28 AM", "Hang Hieu"),
+        ("msg_8", "chưa ông ơi", false, "8:29 AM", "Tuấn Thành"),
+        ("msg_9", "add new contact á", false, "8:29 AM", "Hang Hieu"),
+        ("msg_10", "tui vừa làm với ô đó", false, "8:30 AM", "Hang Hieu"),
+        ("msg_11", "nó tự chấp nhận kb luôn mà", true, "8:30 AM", ""),
+        ("msg_12", "af af", false, "8:31 AM", "Hang Hieu"),
+        ("msg_13", "oke chút nữa tui push lên", true, "8:32 AM", ""),
+        ("msg_14", "ừ nhanh lên nha còn test", false, "8:33 AM", "Tuấn Thành"),
     },
             ["3"] = new()
     {
-        ("Hey, lâu rồi không gặp!",              false, "10 Mar", "Tuấn Thành"),
-        ("Ừ, dạo này bận lắm",                   true,  "10 Mar", ""),
-        ("Sure",                                  false, "10 Mar", "Tuấn Thành"),
+        ("msg_15", "Hey, lâu rồi không gặp!", false, "10 Mar", "Tuấn Thành"),
+        ("msg_16", "Ừ, dạo này bận lắm", true, "10 Mar", ""),
+        ("msg_17", "Sure", false, "10 Mar", "Tuấn Thành"),
     },
         };
 
-        // Tin nhắn của conversation đang active (để SendMessage biết thêm vào đâu)
-        private List<(string Text, bool Out, string Time, string Sender)> _currentMsgs =>
+        // Cập nhật lại _currentMsgs sang Tuple 5 tham số
+        private List<(string Id, string Text, bool Out, string Time, string Sender)> _currentMsgs =>
             _allMsgs.TryGetValue(_activeConvId, out var list) ? list : new();
 
         private readonly Dictionary<string, bool> _settingsToggles = new(); // công tắc Night mode
@@ -824,7 +834,8 @@ namespace SecureChat.Client
             for (var i = 0; i < dlg.PollOptions.Count; i++)
                 pollText += $"\n{i + 1}. {dlg.PollOptions[i]}";
 
-            _currentMsgs.Add((pollText, true, DateTime.Now.ToString("h:mm tt"), ""));
+            // Thêm Guid.NewGuid().ToString() vào đầu để làm ID cho tin nhắn chứa Poll
+            _currentMsgs.Add((Guid.NewGuid().ToString(), pollText, true, DateTime.Now.ToString("h:mm tt"), ""));
             BuildMessages();
         }
 
@@ -1026,59 +1037,120 @@ namespace SecureChat.Client
             return btn;
         }
 
+        private string ExtractActualText(string rawText)
+        {
+            const string replyPrefix = "reply::";
+            if (!string.IsNullOrEmpty(rawText) && rawText.StartsWith(replyPrefix))
+            {
+                var parts = rawText.Substring(replyPrefix.Length).Split(new[] { "::" }, 3, StringSplitOptions.None);
+                if (parts.Length == 3) return parts[2]; // Chỉ lấy TinNhắnMới
+            }
+            return rawText;
+        }
+
 
         private void BuildInputBar()
         {
-            _pnlInputBar = new Panel
+            _pnlInputBar = new Panel { Height = 56, Dock = DockStyle.Bottom, BackColor = Color.White };
+            _pnlInputBar.Paint += (s, e) => e.Graphics.DrawLine(new Pen(TG.Divider), 0, 0, _pnlInputBar.Width, 0);
+
+            // =========================================================
+            // 1. TẠO PANEL REPLY (Bao gồm Icon, Đường viền, Tên, Text)
+            // =========================================================
+            _pnlReplyContext = new Panel { Dock = DockStyle.Top, Height = 44, Visible = false, BackColor = Color.White };
+
+            // Icon mũi tên quay lại
+            var lblReplyIcon = new Label
             {
-                Height = 56,
-                Dock = DockStyle.Bottom,
-                BackColor = Color.White,
+                Text = "↩",
+                Font = new Font("Segoe UI Emoji", 15f), // Font to một chút cho giống icon
+                ForeColor = TG.Blue,
+                Location = new Point(6, 6), // Nằm ở mép trái
+                AutoSize = true,
+                BackColor = Color.Transparent
             };
-            _pnlInputBar.Paint += (s, e) =>
-                e.Graphics.DrawLine(new Pen(TG.Divider), 0, 0, _pnlInputBar.Width, 0);
 
-            // Layout: [📎] [text field] [😊] [🎤 / ↑]
+            // Đường viền dọc bên trái (Màu xanh accent)
+            var pnlAccent = new Panel { Width = 3, Height = 34, BackColor = TG.Blue, Location = new Point(48, 5) };
+
+            // Tên người gửi
+            _lblReplySender = new Label
+            {
+                Font = TG.FontSemiBold(9.5f),
+                ForeColor = TG.Blue,
+                Location = new Point(56, 4),
+                AutoSize = true
+            };
+
+            // Nội dung tin nhắn gốc
+            _lblReplyText = new Label
+            {
+                Font = TG.FontRegular(9f),
+                ForeColor = TG.TextSecondary,
+                Location = new Point(56, 22),
+                AutoSize = false,
+                Size = new Size(200, 20),
+                AutoEllipsis = true
+            };
+
+            // Nút [X] để tắt Reply
+            var btnCloseReply = new Button
+            {
+                Text = "✕",
+                Font = TG.FontRegular(10f),
+                FlatStyle = FlatStyle.Flat,
+                ForeColor = TG.TextHint,
+                Size = new Size(30, 30),
+                Cursor = Cursors.Hand,
+                BackColor = Color.Transparent
+            };
+            btnCloseReply.FlatAppearance.BorderSize = 0;
+            btnCloseReply.FlatAppearance.MouseOverBackColor = Color.Transparent;
+            btnCloseReply.FlatAppearance.MouseDownBackColor = Color.Transparent;
+
+            // Sự kiện tắt Reply
+            btnCloseReply.Click += (s, e) => { _replyingToMessageId = null; _pnlReplyContext.Visible = false; _pnlInputBar.Height = 56; };
+
+            // Thêm TẤT CẢ vào Panel Reply
+            _pnlReplyContext.Controls.AddRange(new Control[] {pnlAccent, _lblReplySender, _lblReplyText, btnCloseReply , lblReplyIcon });
+
+            // Tự động giãn dòng text theo chiều rộng Form
+            _pnlReplyContext.Resize += (s, e) => {
+                btnCloseReply.Location = new Point(_pnlReplyContext.Width - 40, 7);
+                _lblReplyText.Width = _pnlReplyContext.Width - 110;
+            };
+
+            // =========================================================
+            // 2. TẠO KHUNG NHẬP CHAT BÌNH THƯỜNG (Có TextBox, Nút gửi...)
+            // =========================================================
             var btnAttach = MakeInputBtn("📎");
-
             _tbMessage = new TelegramTextBox { Height = 36 };
             _tbMessage.SetPlaceholder("Write a message...");
-            _tbMessage.KeyDown += (s, e) =>
-            {
-                if (e.KeyCode == Keys.Return && !e.Shift) { e.SuppressKeyPress = true; SendMessage(); }
-            };
+            _tbMessage.KeyDown += (s, e) => { if (e.KeyCode == Keys.Return && !e.Shift) { e.SuppressKeyPress = true; SendMessage(); } };
 
             var btnEmoji = MakeInputBtn("😊");
             var btnMic = MakeInputBtn("🎤");
-            var btnSend = new TelegramButton
-            {
-                Text = "↑",
-                Height = 36,
-                Width = 36,
-                Font = TG.FontSemiBold(14f),
-                Radius = 18,
-                Visible = false,
-            };
+            var btnSend = new TelegramButton { Text = "↑", Height = 36, Width = 36, Font = TG.FontSemiBold(14f), Radius = 18, Visible = false };
             btnSend.Click += (s, e) => SendMessage();
 
-            _tbMessage.TextChanged += (s, e) =>
-            {
-                bool hasText = !string.IsNullOrWhiteSpace(_tbMessage.Text);
-                btnSend.Visible = hasText;
-                btnMic.Visible = !hasText;
-            };
+            _tbMessage.TextChanged += (s, e) => { bool hasText = !string.IsNullOrWhiteSpace(_tbMessage.Text); btnSend.Visible = hasText; btnMic.Visible = !hasText; };
 
-            _pnlInputBar.Controls.AddRange(new Control[] { btnAttach, _tbMessage, btnEmoji, btnMic, btnSend });
-            _pnlInputBar.Resize += (s, e) =>
-            {
+            // Gom nhóm ô nhập liệu vào một Panel dưới cùng
+            var pnlInputControls = new Panel { Dock = DockStyle.Bottom, Height = 56, BackColor = Color.Transparent };
+            pnlInputControls.Controls.AddRange(new Control[] { btnAttach, _tbMessage, btnEmoji, btnMic, btnSend });
+
+            pnlInputControls.Resize += (s, e) => {
                 int y = 10;
                 btnAttach.Location = new Point(8, y);
-                btnEmoji.Location = new Point(Math.Max(0, _pnlInputBar.Width - 84), y);
-                btnMic.Location = new Point(Math.Max(0, _pnlInputBar.Width - 44), y);
-                btnSend.Location = new Point(Math.Max(0, _pnlInputBar.Width - 44), y);
-                _tbMessage.SetBounds(btnAttach.Right + 6, y,
-                    Math.Max(0, btnEmoji.Left - btnAttach.Right - 12), 36);
+                btnEmoji.Location = new Point(Math.Max(0, pnlInputControls.Width - 84), y);
+                btnMic.Location = new Point(Math.Max(0, pnlInputControls.Width - 44), y);
+                btnSend.Location = new Point(Math.Max(0, pnlInputControls.Width - 44), y);
+                _tbMessage.SetBounds(btnAttach.Right + 6, y, Math.Max(0, btnEmoji.Left - btnAttach.Right - 12), 36);
             };
+
+            // Nạp cả Panel Reply và Panel Input vào Input Bar tổng
+            _pnlInputBar.Controls.Add(_pnlReplyContext);
+            _pnlInputBar.Controls.Add(pnlInputControls);
         }
 
         private Button MakeInputBtn(string icon)
@@ -1086,17 +1158,25 @@ namespace SecureChat.Client
             var btn = new Button
             {
                 Text = icon,
-                Font = new Font("Segoe UI Emoji", 14f),
+                // 1. Giảm nhẹ font từ 14f xuống 13f
+                Font = new Font("Segoe UI Emoji", 13f),
                 FlatStyle = FlatStyle.Flat,
                 Size = new Size(36, 36),
                 BackColor = Color.Transparent,
                 ForeColor = TG.Blue,
                 Cursor = Cursors.Hand,
                 TextAlign = ContentAlignment.MiddleCenter,
+
+                // 2. Dùng Padding đẩy phần ruột (chữ) lên trên 4px, cách đều đáy
+                Padding = new Padding(0, 0, 0, 4)
             };
             btn.FlatAppearance.BorderSize = 0;
             btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(15, 0, 0, 0);
             btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(30, 0, 0, 0);
+
+            // (Tùy chọn) Thêm dòng này để nét render của emoji mượt và chuẩn viền hơn
+            btn.UseCompatibleTextRendering = true;
+
             return btn;
         }
 
@@ -1570,7 +1650,7 @@ namespace SecureChat.Client
             {
                 var msg = _currentMsgs[i];
                 bool isGroup = _convs.Find(c => c.Id == _activeConvId).IsGroup;
-                var bubble = BuildBubble(msg.Text, msg.Out, msg.Time, msg.Sender, isGroup, i);
+                var bubble = BuildBubble(msg.Text, msg.Out, msg.Time, msg.Sender, isGroup, msg.Id);
 
                 // Make bubble respect panel resizing
                 bubble.Location = new Point(0, y);
@@ -1589,7 +1669,7 @@ namespace SecureChat.Client
 
         // Updated BuildBubble signature: added messageIndex to identify which message the context menu acts on
         private Panel BuildBubble(string text, bool isOut, string time,
-                           string sender = "", bool isGroup = false, int messageIndex = -1)
+                           string sender = "", bool isGroup = false, string messageId = "")
         {
             // file::url::name::size
             const string filePrefix = "file::";
@@ -1681,26 +1761,47 @@ namespace SecureChat.Client
             }
 
             var pnl = new Panel { BackColor = Color.Transparent };
-
-            int pad = 12; // Padding (khoảng cách lề) bên trong bubble.
+            int pad = 12;
 
             const int avatarAreaW = 44;
             int leftOffset = (!isOut && isGroup) ? avatarAreaW : 10;
-
-            int maxW = 360; // // Mặc định rộng 360px
+            int maxW = 360;
             if (_pnlMessages != null && _pnlMessages.ClientSize.Width > 0)
                 maxW = Math.Max(220, (int)(_pnlMessages.ClientSize.Width * 0.66f) - _pnlMessages.Padding.Horizontal);
 
+            // --- XỬ LÝ TEXT CHO REPLY ---
+            string replySender = null;
+            string replyText = null;
+            string actualText = text; // Mặc định là text thường
+
+            const string replyPrefix = "reply::";
+            if (!string.IsNullOrEmpty(text) && text.StartsWith(replyPrefix))
+            {
+                var parts = text.Substring(replyPrefix.Length).Split(new[] { "::" }, 3, StringSplitOptions.None);
+                if (parts.Length == 3)
+                {
+                    replySender = parts[0];
+                    replyText = ExtractActualText(parts[1]); // Tránh lỗi reply lồng reply
+                    actualText = parts[2];
+                }
+            }
+
+            // Chỉ đo kích thước của phần chữ mới
             SizeF sz;
             using (var g = _pnlMessages.CreateGraphics())
             {
-                sz = g.MeasureString(text, TG.FontRegular(9.5f), maxW - pad * 2);
+                sz = g.MeasureString(actualText, TG.FontRegular(9.5f), maxW - pad * 2);
             }
 
             int statusHeight = 16;
             int senderHeight = (!isOut && isGroup && !string.IsNullOrEmpty(sender)) ? 19 : 0;
-            int bw = Math.Min(maxW, Math.Max((int)sz.Width + pad * 2 + 10, 100));
-            int bh = (int)sz.Height + pad * 2 + statusHeight + senderHeight;
+            int replyBlockHeight = (replySender != null) ? 38 : 0; // Cao 38px cho khối trích dẫn
+
+            // Đảm bảo chiều rộng bubble đủ chứa tên người reply nếu text mới quá ngắn
+            int minBw = (replySender != null) ? 160 : 100;
+            int bw = Math.Min(maxW, Math.Max((int)sz.Width + pad * 2 + 10, minBw));
+
+            int bh = (int)sz.Height + pad * 2 + statusHeight + senderHeight + replyBlockHeight;
             pnl.Height = bh + 16;
 
             pnl.Paint += (s, e) =>
@@ -1710,46 +1811,67 @@ namespace SecureChat.Client
 
                 int x = isOut ? pnl.ClientSize.Width - bw - 10 : leftOffset;
                 int y = 4;
-
                 Color bg = isOut ? TG.MsgOutBg : TG.MsgInBg;
 
-                // Shadow
+                // Vẽ Bóng (Shadow) và Hình nền (Bubble)
                 using var shadowBrush = new SolidBrush(Color.FromArgb(20, 0, 0, 0));
-                var shadowRect = new Rectangle(x + 1, y + 2, bw, bh);
-                using var shadowPath = RoundedPanel.GetRoundedPath(shadowRect, TG.RadiusBubble);
+                using var shadowPath = RoundedPanel.GetRoundedPath(new Rectangle(x + 1, y + 2, bw, bh), TG.RadiusBubble);
                 e.Graphics.FillPath(shadowBrush, shadowPath);
 
-                // Bubble
-                var bubbleRect = new Rectangle(x, y, bw, bh);
-                using var bubblePath = RoundedPanel.GetRoundedPath(bubbleRect, TG.RadiusBubble);
+                using var bubblePath = RoundedPanel.GetRoundedPath(new Rectangle(x, y, bw, bh), TG.RadiusBubble);
                 e.Graphics.FillPath(new SolidBrush(bg), bubblePath);
 
-                // Tail
-                if (isOut)
-                {
-                    var tail = new[] { new Point(x + bw, y + bh - 8), new Point(x + bw + 5, y + bh), new Point(x + bw, y + bh) };
-                    e.Graphics.FillPolygon(new SolidBrush(bg), tail);
-                }
-                else
-                {
-                    var tail = new[] { new Point(x, y + bh - 8), new Point(x - 5, y + bh), new Point(x, y + bh) };
-                    e.Graphics.FillPolygon(new SolidBrush(bg), tail);
-                }
+                // Vẽ đuôi bong bóng
+                var tail = isOut
+                    ? new[] { new Point(x + bw, y + bh - 8), new Point(x + bw + 5, y + bh), new Point(x + bw, y + bh) }
+                    : new[] { new Point(x, y + bh - 8), new Point(x - 5, y + bh), new Point(x, y + bh) };
+                e.Graphics.FillPolygon(new SolidBrush(bg), tail);
 
-                // Sender name (chỉ group, tin nhận)
+                float currentY = y + pad;
+
+                // 1. Vẽ Tên người gửi (Nếu là chat nhóm)
                 bool showSender = !isOut && isGroup && !string.IsNullOrEmpty(sender);
                 if (showSender)
                 {
                     using var senderBrush = new SolidBrush(SenderNameColor(sender));
-                    e.Graphics.DrawString(sender, TG.FontSemiBold(8f), senderBrush, x + pad, y + pad);
+                    e.Graphics.DrawString(sender, TG.FontSemiBold(8f), senderBrush, x + pad, currentY);
+                    currentY += 19;
                 }
 
-                // Text tin nhắn - bắt đầu dưới tên người gửi
-                float textY = y + pad + (showSender ? 19 : 0);
-                var textRect = new RectangleF(x + pad, textY, bw - pad * 2, sz.Height);
-                e.Graphics.DrawString(text, TG.FontRegular(9.5f), new SolidBrush(TG.TextPrimary), textRect);
+                // 2. VẼ KHỐI TRÍCH DẪN (REPLY BLOCK)
+                // 2. VẼ KHỐI TRÍCH DẪN (REPLY BLOCK)
+                if (replySender != null)
+                {
+                    // ---> MỚI: VẼ NỀN TỐI MỜ CHO KHỐI REPLY <---
+                    // Dùng màu đen với độ trong suốt 15/255 để dìm màu nền hiện tại xuống một chút
+                    using var replyBgBrush = new SolidBrush(Color.FromArgb(15, 0, 0, 0));
+                    var replyBgRect = new Rectangle(x + pad, (int)currentY, bw - pad * 2, 34);
+                    using var replyBgPath = RoundedPanel.GetRoundedPath(replyBgRect, 5); // Bo góc 5px cho mềm mại
+                    e.Graphics.FillPath(replyBgBrush, replyBgPath);
 
-                // Time
+                    // Viền xanh dọc
+                    using var accentBrush = new SolidBrush(TG.Blue);
+                    // Vẽ đè viền xanh lên mép trái của nền vừa tạo, thò thụt 2px cho đẹp
+                    e.Graphics.FillRectangle(accentBrush, x + pad, currentY + 2, 3, 30);
+
+                    // Tên người được trả lời
+                    using var replySenderBrush = new SolidBrush(TG.Blue);
+                    e.Graphics.DrawString(replySender, TG.FontSemiBold(8.5f), replySenderBrush, x + pad + 8, currentY);
+
+                    // Text cũ (rút gọn nếu dài)
+                    var replyTextRect = new RectangleF(x + pad + 8, currentY + 16, bw - pad * 2 - 12, 16);
+                    using var sfReply = new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
+                    e.Graphics.DrawString(replyText, TG.FontRegular(8.5f), new SolidBrush(TG.TextSecondary), replyTextRect, sfReply);
+
+                    // Tăng khoảng cách đẩy Y xuống cho text mới thoáng hơn
+                    currentY += 40;
+                }
+
+                // 3. Text tin nhắn chính (Sử dụng actualText)
+                var textRect = new RectangleF(x + pad, currentY, bw - pad * 2, sz.Height);
+                e.Graphics.DrawString(actualText, TG.FontRegular(9.5f), new SolidBrush(TG.TextPrimary), textRect);
+
+                // 4. Thời gian và dấu tick ✓✓
                 var timeSz = e.Graphics.MeasureString(time, TG.FontRegular(7.5f));
                 float tx = x + bw - timeSz.Width - pad - (isOut ? 26 : 0);
                 float ty = y + bh - timeSz.Height - 6;
@@ -1763,70 +1885,22 @@ namespace SecureChat.Client
                 }
             };
 
-            // Context menu: align with Telegram-like items and wire proper logic
-            var ctx = new ContextMenuStrip
+            // Tạo Context Menu
+            var actions = new SecureChat.Client.Forms.Chat.MessageActions
             {
-                ShowImageMargin = false,
-                Font = new Font("Segoe UI", 10f),
-                Renderer = new ToolStripProfessionalRenderer(new ChatMenuColorTable())
+                Reply = id => OnReplyMessage(id),
+                Forward = id => OnForwardMessage(id),
+                Copy = id => OnCopyMessage(id),
+                Edit = isOut ? (id => OnEditMessage(id)) : null,
+                Pin = id => OnPinMessage(id),
+                React = id => OnReactMessage(id),
+                Delete = id => OnDeleteMessage(id, isOut)
             };
+            pnl.ContextMenuStrip = SecureChat.Client.Forms.Chat.frmRightClickMessageMenu.Create(messageId, actions, null);
 
-            // Common actions
-            var miReply = new ToolStripMenuItem("↩  Reply");
-            miReply.Click += (_, __) => OnReplyMessage(messageIndex);
-            ctx.Items.Add(miReply);
-
-            var miForward = new ToolStripMenuItem("↗  Forward");
-            miForward.Click += (_, __) => OnForwardMessage(messageIndex);
-            ctx.Items.Add(miForward);
-
-            var miCopy = new ToolStripMenuItem("📋  Copy");
-            miCopy.Click += (_, __) => OnCopyMessage(messageIndex);
-            ctx.Items.Add(miCopy);
-
-            // Edit (only for outgoing messages)
-            if (isOut)
-            {
-                var miEdit = new ToolStripMenuItem("✎  Edit");
-                miEdit.Click += (_, __) => OnEditMessage(messageIndex);
-                ctx.Items.Add(miEdit);
-            }
-
-            var miPin = new ToolStripMenuItem("📌  Pin");
-            miPin.Click += (_, __) => OnPinMessage(messageIndex);
-            ctx.Items.Add(miPin);
-
-            // Delete submenu: Delete for me (always) and Delete for everyone (only if outgoing)
-            ctx.Items.Add(new ToolStripSeparator());
-            var miDelete = new ToolStripMenuItem("🗑  Delete");
-            var miDeleteForMe = new ToolStripMenuItem("Delete for me");
-            miDeleteForMe.Click += (_, __) => OnDeleteMessage(messageIndex, deleteForEveryone: false);
-            miDelete.DropDownItems.Add(miDeleteForMe);
-
-            if (isOut)
-            {
-                var miDeleteForEveryone = new ToolStripMenuItem("Delete for everyone");
-                miDeleteForEveryone.ForeColor = Color.FromArgb(0xE2, 0x4B, 0x4A);
-                miDeleteForEveryone.Click += (_, __) => OnDeleteMessage(messageIndex, deleteForEveryone: true);
-                miDelete.DropDownItems.Add(miDeleteForEveryone);
-            }
-            else
-            {
-                // For incoming messages Telegram sometimes provides "Report" or "Report spam" — skip for now.
-            }
-
-            ctx.Items.Add(miDelete);
-
-            pnl.ContextMenuStrip = ctx;
-
-            // Avatar for group messages (unchanged)
             if (!isOut && isGroup)
             {
-                var av = new AvatarControl
-                {
-                    Size = new Size(32, 32),
-                    Location = new Point(6, 4)
-                };
+                var av = new AvatarControl { Size = new Size(32, 32), Location = new Point(6, 4) };
                 av.SetName(sender);
                 pnl.Controls.Add(av);
             }
@@ -1870,92 +1944,207 @@ namespace SecureChat.Client
 
             progress?.Report(100);
         }
-        private void OnReplyMessage(int index)
+
+        private (DialogResult Result, bool IsChecked) ShowTelegramDialog(string title, string checkboxText, string confirmText, Color confirmColor)
+{
+    using var dlg = new Form
+    {
+        Text = title,
+        Size = new Size(320, 180), // Tăng chiều cao lên chút
+        StartPosition = FormStartPosition.CenterParent,
+        FormBorderStyle = FormBorderStyle.FixedDialog,
+        MaximizeBox = false, MinimizeBox = false, ShowIcon = false,
+        BackColor = Color.White,
+        Font = TG.FontRegular(10f)
+    };
+
+    // Xóa Title rườm rà bên trong, chỉ để chữ ở Form Header (Text = title)
+
+    var chkAlso = new CheckBox { 
+        Text = checkboxText, 
+        Location = new Point(20, 30), // Đẩy lên trên
+        AutoSize = true, 
+        Cursor = Cursors.Hand,
+        FlatStyle = FlatStyle.Standard // Giúp checkbox phẳng hơn
+    };
+
+    // Nút Cancel
+    var btnCancel = new Button { 
+        Text = "CANCEL", // Đổi thành in hoa
+        Location = new Point(120, 90), 
+        Size = new Size(80, 36), 
+        FlatStyle = FlatStyle.Flat, 
+        ForeColor = TG.Blue, 
+        Cursor = Cursors.Hand,
+        Font = TG.FontSemiBold(9.5f)
+    };
+    btnCancel.FlatAppearance.BorderSize = 0;
+    btnCancel.FlatAppearance.MouseOverBackColor = Color.FromArgb(10, TG.Blue); // Hover mờ mờ
+    btnCancel.FlatAppearance.MouseDownBackColor = Color.FromArgb(20, TG.Blue);
+    btnCancel.Click += (s, e) => { dlg.DialogResult = DialogResult.Cancel; };
+
+    // Nút Confirm
+    var btnConfirm = new Button { 
+        Text = confirmText.ToUpper(), // In hoa
+        Location = new Point(210, 90), 
+        Size = new Size(80, 36), 
+        FlatStyle = FlatStyle.Flat, 
+        ForeColor = confirmColor, 
+        Cursor = Cursors.Hand,
+        Font = TG.FontSemiBold(9.5f)
+    };
+    btnConfirm.FlatAppearance.BorderSize = 0;
+    btnConfirm.FlatAppearance.MouseOverBackColor = Color.FromArgb(10, confirmColor);
+    btnConfirm.FlatAppearance.MouseDownBackColor = Color.FromArgb(20, confirmColor);
+    btnConfirm.Click += (s, e) => { dlg.DialogResult = DialogResult.Yes; };
+
+    // Mẹo xóa viền Focus của WinForms: Focus vào 1 label ẩn
+    var hiddenFocus = new Label { Size = new Size(0, 0) };
+    dlg.Shown += (s, e) => hiddenFocus.Focus();
+
+    dlg.Controls.AddRange(new Control[] { chkAlso, btnCancel, btnConfirm, hiddenFocus });
+    dlg.AcceptButton = btnConfirm;
+    dlg.CancelButton = btnCancel;
+
+    var result = dlg.ShowDialog(this);
+    return (result, chkAlso.Checked);
+}
+
+        
+
+        // Lưu ý: Nếu báo lỗi ở InputBox, bạn cần click chuột phải vào project Client -> Add -> Reference -> Tick chọn Microsoft.VisualBasic nhé
+        private async void OnForwardMessage(string messageId)
         {
-            if (index < 0 || index >= _currentMsgs.Count) return;
-            var msg = _currentMsgs[index];
-            string sender = string.IsNullOrEmpty(msg.Sender) ? "You" : msg.Sender;
-            // Insert a simple quoted reply into the message box and focus it
-            _tbMessage.Text = $"> {sender}: {msg.Text}\r\n";
+            var msgIndex = _currentMsgs.FindIndex(m => m.Id == messageId);
+            if (msgIndex < 0) return;
+
+            var msg = _currentMsgs[msgIndex];
+
+            // Mở Form hiển thị danh sách hội thoại
+            using var dlg = new SecureChat.Client.Forms.Chat.frmForwardMessage(_convs);
+            if (dlg.ShowDialog(this) != DialogResult.OK || string.IsNullOrWhiteSpace(dlg.SelectedConversationId))
+                return;
+
+            string targetConversationId = dlg.SelectedConversationId;
+
+            // Gói dữ liệu gửi lên Server
+            var req = new SendMessageRequest(
+                Type: MessageType.Text,
+                Content: $"[Forwarded] {msg.Text}", // Đánh dấu là tin nhắn chuyển tiếp
+                ContentIV: "TBD",
+                ReplyToID: null,
+                OriginalSenderID: msg.Sender,
+                Attachments: null,
+                MentionedMemberIDs: null
+            );
+
+            // Gọi API post tới cuộc trò chuyện được chọn
+            var (ok, _, err) = await ApiClient.Instance.PostAsync<SendMessageRequest, MessageResponse>($"api/messages/{targetConversationId}", req);
+
+            if (ok)
+            {
+                MessageBox.Show(this, "Đã chuyển tiếp tin nhắn thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show(this, $"Lỗi forward: {err}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void OnReplyMessage(string messageId)
+        {
+            var msgIndex = _currentMsgs.FindIndex(m => m.Id == messageId);
+            if (msgIndex < 0) return;
+
+            var msg = _currentMsgs[msgIndex];
+            _replyingToMessageId = msg.Id;
+
+            _lblReplySender.Text = string.IsNullOrEmpty(msg.Sender) ? "You" : msg.Sender;
+
+            // GỌI HÀM EXTRACT ĐỂ HIỂN THỊ TEXT TRONG THANH REPLY
+            _lblReplyText.Text = ExtractActualText(msg.Text);
+
+            _pnlReplyContext.Visible = true;
+            _pnlInputBar.Height = 56 + 44;
             _tbMessage.Focus();
-            // FIX: Use the underlying TextBox's SelectionStart property
-            if (_tbMessage.Controls.Count > 0 && _tbMessage.Controls[0] is TextBox tb)
-                tb.SelectionStart = tb.Text.Length;
         }
 
-        private void OnForwardMessage(int index)
+        private void OnCopyMessage(string messageId)
         {
-            if (index < 0 || index >= _currentMsgs.Count) return;
-            var msg = _currentMsgs[index];
-            // For now, copy to clipboard and inform user — a real implementation should open contact chooser
-            try
-            {
-                Clipboard.SetText(msg.Text ?? string.Empty);
-                MessageBox.Show(this, "Message copied to clipboard. Use Paste to forward or implement Forward UI.", "Forward", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch
-            {
-                MessageBox.Show(this, "Unable to copy message to clipboard.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            var msg = _currentMsgs.Find(m => m.Id == messageId);
+            if (msg.Id != null) Clipboard.SetText(ExtractActualText(msg.Text));
         }
 
-        private void OnCopyMessage(int index)
+        private void OnEditMessage(string messageId)
         {
-            if (index < 0 || index >= _currentMsgs.Count) return;
-            var msg = _currentMsgs[index];
-            try
-            {
-                Clipboard.SetText(msg.Text ?? string.Empty);
-            }
-            catch
-            {
-                MessageBox.Show(this, "Unable to copy message to clipboard.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
+            var msgIndex = _currentMsgs.FindIndex(m => m.Id == messageId);
+            if (msgIndex < 0) return;
 
-        private void OnEditMessage(int index)
-        {
-            if (index < 0 || index >= _currentMsgs.Count) return;
-            var msg = _currentMsgs[index];
-            if (!msg.Out) return; // safety
+            var msg = _currentMsgs[msgIndex];
+            if (!msg.Out) return;
 
-            if (TryShowEditDialog(msg.Text, out var newText))
+            // HIỂN THỊ TEXT ĐÃ LỌC CHO NGƯỜI DÙNG SỬA
+            if (TryShowEditDialog(ExtractActualText(msg.Text), out var newText))
             {
-                var t = _currentMsgs[index];
-                _currentMsgs[index] = (newText, t.Out, t.Time, t.Sender);
+                // Kiểm tra xem tin gốc có phải là tin reply không để giữ lại phần quote
+                string finalNewText = newText;
+                if (msg.Text.StartsWith("reply::"))
+                {
+                    var parts = msg.Text.Substring(7).Split(new[] { "::" }, 3, StringSplitOptions.None);
+                    if (parts.Length == 3) finalNewText = $"reply::{parts[0]}::{parts[1]}::{newText}";
+                }
+
+                _currentMsgs[msgIndex] = (msg.Id, finalNewText, msg.Out, msg.Time, msg.Sender);
                 BuildMessages();
             }
         }
 
-        private void OnPinMessage(int index)
+        private async void OnDeleteMessage(string messageId, bool isOut)
         {
-            if (index < 0 || index >= _currentMsgs.Count) return;
-            // No pin store currently — just notify. In a real app, persist pin to conversation state.
-            MessageBox.Show(this, "Message pinned (UI only). Implement persistent pinning in conversation state.", "Pin", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
+            var msgIndex = _currentMsgs.FindIndex(m => m.Id == messageId);
+            if (msgIndex < 0) return;
 
-        private void OnDeleteMessage(int index, bool deleteForEveryone)
-        {
-            if (index < 0 || index >= _currentMsgs.Count) return;
+            bool deleteForEveryone = false;
 
-            var msg = _currentMsgs[index];
-            string prompt = deleteForEveryone
-                ? "Are you sure you want to delete this message for everyone?"
-                : "Are you sure you want to delete this message for you?";
-            var res = MessageBox.Show(this, prompt, "Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-            if (res != DialogResult.Yes) return;
-
-            // Local removal
-            _currentMsgs.RemoveAt(index);
-
-            // If deleteForEveryone, in a real app we would notify server/hub to remove it for all clients.
-            if (deleteForEveryone)
+            if (isOut)
             {
-                // TODO: SignalR call: await _chatService.DeleteMessageForEveryone(conversationId, messageId);
-                MessageBox.Show(this, "Requested deletion for everyone (simulated). Implement server-side delete via API/SignalR.", "Delete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // Hiện Popup custom giống Telegram
+                var dialog = ShowTelegramDialog("Delete message?", "Also delete for other user", "Delete", Color.FromArgb(0xE2, 0x4B, 0x4A));
+                if (dialog.Result != DialogResult.Yes) return;
+
+                // SỬA LỖI Ở ĐÂY: Dùng dialog.IsChecked thay vì dialog.Checked
+                deleteForEveryone = dialog.IsChecked;
+            }
+            else
+            {
+                var dialog = ShowTelegramDialog("Delete message?", "Delete just for me", "Delete", Color.FromArgb(0xE2, 0x4B, 0x4A));
+                if (dialog.Result != DialogResult.Yes) return;
             }
 
+            if (deleteForEveryone)
+            {
+                // Ở đây sẽ văng lỗi vì Server chưa có API, bạn cứ Comment lại để test UI trước đã
+                // var (ok, err) = await ApiClient.Instance.DeleteAsync($"api/messages/{messageId}");
+                // if (!ok) { MessageBox.Show(err); return; }
+            }
+
+            _currentMsgs.RemoveAt(msgIndex);
             BuildMessages();
+        }
+
+        private void OnPinMessage(string messageId)
+        {
+            var dialog = ShowTelegramDialog("Pin message?", "Pin for both sides", "Pin", TG.Blue);
+            if (dialog.Result == DialogResult.Yes)
+            {
+                // SỬA LỖI Ở ĐÂY: Dùng dialog.IsChecked
+                MessageBox.Show($"Đã ghim! (Pin for both: {dialog.IsChecked})", "Ghim tin nhắn", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void OnReactMessage(string messageId)
+        {
+            MessageBox.Show("Tính năng thả cảm xúc (React) đang được phát triển!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         // Simple modal edit dialog (returns true if user clicked OK)
@@ -2013,8 +2202,26 @@ namespace SecureChat.Client
             string text = _tbMessage.Text.Trim();
             _tbMessage.Text = "";
 
-            // _msgs.Add((text, true, DateTime.Now.ToString("h:mm tt")));
-            _currentMsgs.Add((text, true, DateTime.Now.ToString("h:mm tt"), ""));
+            string finalMessageText = text;
+
+            // Nếu đang trong chế độ Reply, lấy thông tin tin nhắn cũ gộp vào
+            if (!string.IsNullOrEmpty(_replyingToMessageId))
+            {
+                var origMsg = _currentMsgs.Find(m => m.Id == _replyingToMessageId);
+                if (origMsg.Id != null) // Tồn tại
+                {
+                    string origSender = string.IsNullOrEmpty(origMsg.Sender) ? "You" : origMsg.Sender;
+                    // Format: reply::SenderName::OriginalText::NewText
+                    finalMessageText = $"reply::{origSender}::{origMsg.Text}::{text}";
+                }
+            }
+
+            _currentMsgs.Add((Guid.NewGuid().ToString(), finalMessageText, true, DateTime.Now.ToString("h:mm tt"), ""));
+
+            // Dọn dẹp giao diện sau khi gửi
+            _pnlReplyContext.Visible = false;
+            _pnlInputBar.Height = 56;
+            _replyingToMessageId = null;
 
             BuildMessages();
         }
@@ -2222,7 +2429,7 @@ namespace SecureChat.Client
             }
         }
 
-        protected override void WndProc(ref Message m)
+        protected override void WndProc(ref System.Windows.Forms.Message m)
         {
             const int WM_ERASEBKGND = 0x0014;
             const int WM_VSCROLL = 0x0115;
