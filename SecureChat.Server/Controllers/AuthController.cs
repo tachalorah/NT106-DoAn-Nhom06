@@ -25,17 +25,20 @@ namespace SecureChat.Controllers
 				return Conflict(new { error = "Tên người dùng đã được sử dụng." });
 			if (await users.ExistsByEmailAsync(req.Email))
 				return Conflict(new { error = "Email đã được sử dụng." });
-			
-			await users.CreateAsync(new User {
-				UserID = NewID(),
-				Username = req.Username,
-				DisplayName = req.DisplayName,
-				Email = req.Email,
-				HashedPassword = PasswordHasher.NormalizeForStorage(req.HashedPassword),
-				HashedBKey = req.HashedBKey,
-				KeySalt = req.KeySalt,
-				PublicKey = req.PublicKey
-			});
+
+            var (hash, salt) = PasswordHasher.HashPassword(req.HashedPassword);
+
+            await users.CreateAsync(new User
+            {
+                UserID = NewID(),
+                Username = req.Username,
+                DisplayName = req.DisplayName,
+                Email = req.Email,
+                HashedPassword = hash, // Chỉ lưu hash
+                HashedBKey = req.HashedBKey,
+                KeySalt = salt,        // Lưu salt thật vào đây
+                PublicKey = req.PublicKey
+            });
 
 			return Ok(new { message = "Đăng ký thành công." });
 		}
@@ -47,10 +50,10 @@ namespace SecureChat.Controllers
 				? await users.GetByEmailAsync(req.UsernameOrEmail)
 				: await users.GetByUsernameAsync(req.UsernameOrEmail);
 
-			if (user is null || !PasswordHasher.Verify(req.HashedPassword, user.HashedPassword))
-				return Unauthorized(new { error = "Thông tin đăng nhập không hợp lệ." });
+            if (user is null || !PasswordHasher.Verify(req.HashedPassword, user.HashedPassword, user.KeySalt))
+                return Unauthorized(new { error = "Thông tin đăng nhập không hợp lệ." });
 
-			var sessionID = NewID();
+            var sessionID = NewID();
 			var accessToken = tokens.GenerateAccessToken(user.UserID, sessionID);
 			var refreshToken = TokenService.GenerateRefreshToken();
 			var expiry = TokenService.RefreshTokenExpiry(config);
@@ -171,8 +174,14 @@ namespace SecureChat.Controllers
 				return BadRequest(new { message = "Invalid reset token.", errorCode = "INVALID_TOKEN" });
 			}
 
-			await users.UpdateHashedPasswordOnlyAsync(user.UserID, PasswordHasher.NormalizeForStorage(req.NewPassword));
-           logger.LogInformation("Forgot-password reset completed for user {UserID}", user.UserID);
+            //await users.UpdateHashedPasswordOnlyAsync(user.UserID, PasswordHasher.NormalizeForStorage(req.NewPassword));
+            var (newHash, newSalt) = PasswordHasher.HashPassword(req.NewPassword);
+            // Lưu ý: Bạn cần vào file UserRepository.cs sửa lại hàm UpdateHashedPasswordOnlyAsync 
+            // để nó nhận và cập nhật cả 2 tham số là newHash và newSalt nhé!
+            await users.UpdatePasswordAsync(user.UserID, newHash, newSalt);
+
+
+            logger.LogInformation("Forgot-password reset completed for user {UserID}", user.UserID);
 			return Ok(new ForgotPasswordResetResponse("Password reset successful."));
 		}
 

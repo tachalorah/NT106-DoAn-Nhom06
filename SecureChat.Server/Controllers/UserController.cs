@@ -54,24 +54,30 @@ namespace SecureChat.Controllers
 			return NoContent();
 		}
 
-		[HttpPut("me/password")]
-		public async Task<IActionResult> ChangeHashedPassword([FromBody] UpdateHashedPasswordRequest req)
-		{
-			var user = await users.GetByIdAsync(Me);
-			if (user is null)
-				return NotFound();
+        [HttpPut("me/password")]
+        public async Task<IActionResult> ChangeHashedPassword([FromBody] UpdateHashedPasswordRequest req)
+        {
+            var user = await users.GetByIdAsync(Me);
+            if (user is null)
+                return NotFound();
 
-			if (!PasswordHasher.Verify(req.OldHashedPassword, user.HashedPassword))
-				return BadRequest(new { error = "Mật khẩu cũ không trùng khớp." });
+            // SỬA LỖI 1: Truyền thêm user.KeySalt vào để Verify
+            if (!PasswordHasher.Verify(req.OldHashedPassword, user.HashedPassword, user.KeySalt))
+                return BadRequest(new { error = "Mật khẩu cũ không trùng khớp." });
 
-			await users.UpdateHashedPasswordAsync(Me, PasswordHasher.NormalizeForStorage(req.NewHashedPassword), req.NewHashedBKey, req.NewKeySalt);
-			user.PublicKey = req.NewPublicKey;
-			await users.UpdateAsync(user);
+            // SỬA LỖI 2: Dùng hàm HashPassword mới, tách riêng Hash và Salt
+            var (newHash, newSalt) = PasswordHasher.HashPassword(req.NewHashedPassword);
 
-			return NoContent();
-		}
+            // Gọi hàm cập nhật, truyền newHash và newSalt (thay thế cho req.NewKeySalt cũ)
+            await users.UpdateHashedPasswordAsync(Me, newHash, req.NewHashedBKey, newSalt);
 
-		[HttpPatch("me/privacy")]
+            user.PublicKey = req.NewPublicKey;
+            await users.UpdateAsync(user);
+
+            return NoContent();
+        }
+
+        [HttpPatch("me/privacy")]
 		public async Task<IActionResult> UpdatePrivacySettings([FromBody] UpdatePrivacyRequest req)
 		{
 			await users.UpdatePrivacySettingsAsync(Me, req.ShowReadStatus, req.ShowOnlineStatus);
