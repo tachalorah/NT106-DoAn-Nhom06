@@ -181,8 +181,8 @@ namespace SecureChat.Client
                 e.Graphics.FillRectangle(parentBrush, this.ClientRectangle);
             }
 
-            
-            
+
+
             int size = Math.Min(Width, Height);
             var rect = new Rectangle(0, 0, size - 1, size - 1);
 
@@ -262,6 +262,7 @@ namespace SecureChat.Client
         private Label _placeholderLabel = null!;
         private Button _btnTogglePassword = null!;
         private bool _isPasswordVisible = false;
+        private char _defaultPasswordChar = '●';
 
         public new string Text { get => _tb.Text; set => _tb.Text = value; }
         public char PasswordChar { get => _tb.PasswordChar; set => _tb.PasswordChar = value; }
@@ -303,7 +304,12 @@ namespace SecureChat.Client
             {
                 BackColor = Color.Transparent,
                 FlatStyle = FlatStyle.Flat,
-                FlatAppearance = { BorderSize = 0 },
+                FlatAppearance =
+                {
+                    BorderSize = 0,
+                    MouseOverBackColor = Color.Transparent, 
+                    MouseDownBackColor = Color.Transparent  
+                },
                 Cursor = Cursors.Hand,
                 Font = TG.FontRegular(11f),
                 ForeColor = TG.TextHint,
@@ -343,7 +349,8 @@ namespace SecureChat.Client
         private void TogglePasswordVisibility()
         {
             _isPasswordVisible = !_isPasswordVisible;
-            _tb.PasswordChar = _isPasswordVisible ? '\0' : _tb.PasswordChar;
+            // SỬA DÒNG NÀY: Lấy _defaultPasswordChar ra dùng thay vì _tb.PasswordChar
+            _tb.PasswordChar = _isPasswordVisible ? '\0' : _defaultPasswordChar;
             UpdatePasswordToggleButton();
         }
 
@@ -358,6 +365,9 @@ namespace SecureChat.Client
             get => _tb.PasswordChar;
             set
             {
+                // THÊM DÒNG NÀY: Nếu value khác \0 thì lưu lại làm ký tự gốc
+                if (value != '\0') _defaultPasswordChar = value;
+
                 _tb.PasswordChar = value;
                 _btnTogglePassword.Visible = (value != '\0');
                 _isPasswordVisible = (value == '\0');
