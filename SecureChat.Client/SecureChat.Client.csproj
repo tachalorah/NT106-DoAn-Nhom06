@@ -35,4 +35,10 @@
     <None Include="Resources\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Update="Forms\Chat\frmClearHistory - Copy.cs">
+      <SubType>Form</SubType>
+    </Compile>
+  </ItemGroup>
+
 </Project>

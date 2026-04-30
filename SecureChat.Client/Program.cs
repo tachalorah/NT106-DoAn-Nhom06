@@ -25,7 +25,7 @@ namespace SecureChat.Client
             };
 
             ApplicationConfiguration.Initialize();
-            Application.Run(new frmLoginRegister());
+            Application.Run(new frmMainChat());
         }
 
         private static void UIThreadException(object sender, ThreadExceptionEventArgs e)
