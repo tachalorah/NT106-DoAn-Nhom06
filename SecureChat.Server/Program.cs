@@ -1,6 +1,5 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -9,6 +8,8 @@ using SecureChat.Repositories;
 using SecureChat.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSignalR();
 
 var connStr = builder.Configuration.GetConnectionString("Default")
 	?? throw new InvalidOperationException("Connection string 'Default' not found.");
