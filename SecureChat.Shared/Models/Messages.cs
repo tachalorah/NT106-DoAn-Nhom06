@@ -77,7 +77,10 @@ namespace SecureChat.Models
 		[Required, Column("file_name"),MaxLength(64)]
 		public string FileName { get; set; } = "";
 
-		[Required, Column("file_type"), MaxLength(128)]
+        [Required, Column("file_name_in_storage"), MaxLength(64)]
+        public string FileNameInStorage { get; set; } = "";
+
+        [Required, Column("file_type"), MaxLength(128)]
 		public string FileType { get; set; } = "";
 
 		[Required, Column("file_hash"),MaxLength(256)]

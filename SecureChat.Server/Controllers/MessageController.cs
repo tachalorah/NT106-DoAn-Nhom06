@@ -68,6 +68,7 @@ namespace SecureChat.Controllers
 						MessageID    = msg.MessageID,
 						FileURL      = att.FileURL,
 						FileName     = att.FileName,
+						FileNameInStorage = att.FileNameInStorage,
 						FileType     = att.FileType,
 						FileHash     = att.FileHash,
 						FileSize     = att.FileSize,

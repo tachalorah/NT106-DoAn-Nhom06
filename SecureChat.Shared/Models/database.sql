@@ -170,6 +170,7 @@ create table if not exists MessageAttachments (
 	
 	file_url 		text 		not null,
 	file_name 		varchar(64) 	not null,
+	file_name_in_storage varchar(64) not null,
 	file_type 		varchar(128) 	not null,
 	file_hash 		varchar(256) 	not null,
 

@@ -21,7 +21,8 @@ namespace SecureChat.DTOs
 	public record CreateAttachmentRequest(
 		[Required] string FileURL,
 		[Required, MaxLength(64)] string FileName,
-		[Required, MaxLength(128)] string FileType,
+        [Required, MaxLength(64)] string FileNameInStorage,
+        [Required, MaxLength(128)] string FileType,
 		[Required, MaxLength(256)] string FileHash,
 		[Required] long FileSize,
 		int? Width,
@@ -68,6 +69,7 @@ namespace SecureChat.DTOs
 		string AttachmentID,
 		string FileURL,
 		string FileName,
+		string FileNameInStorage,
 		string FileType,
 		string FileHash,
 		long FileSize,
@@ -79,8 +81,8 @@ namespace SecureChat.DTOs
 	)
 	{
 		public static AttachmentResponse From(MessageAttachment a) => new(
-			a.AttachmentID, a.FileURL, a.FileName, a.FileType,
-			a.FileHash, a.FileSize, a.Width, a.Height,
+			a.AttachmentID, a.FileURL, a.FileName, a.FileNameInStorage,
+			a.FileType, a.FileHash, a.FileSize, a.Width, a.Height,
 			a.ThumbnailURL, a.DurationSecs, a.UploadedAt
 		);
 	}
