@@ -17,13 +17,12 @@ namespace SecureChat.Services
             _logger = logger;
         }
 
-        public Task<string> GenerateOtpAsync(string email, int ttlMinutes = 5)
+        public Task<string> GenerateOtpAsync(string email, string purpose = "forgot-password", int ttlMinutes = 5)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(email);
 
             PruneExpiredEntries();
-
-            var key = email.Trim().ToLowerInvariant();
+            var key = MakeKey(email, purpose);
             var otp = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
             var expiresAt = DateTime.UtcNow.AddMinutes(ttlMinutes);
             _store[key] = new OtpEntry(otp, expiresAt);
@@ -31,12 +30,12 @@ namespace SecureChat.Services
             return Task.FromResult(otp);
         }
 
-        public Task<OtpVerifyStatus> VerifyOtpAsync(string email, string otp)
+        public Task<OtpVerifyStatus> VerifyOtpAsync(string email, string otp, string purpose = "forgot-password")
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(email);
             if (string.IsNullOrWhiteSpace(otp)) return Task.FromResult(OtpVerifyStatus.Invalid);
 
-            var key = email.Trim().ToLowerInvariant();
+            var key = MakeKey(email, purpose);
             if (!_store.TryGetValue(key, out var entry))
             {
                 _logger.LogInformation("OTP verify failed for {Email}: not found", MaskEmail(email));
@@ -59,6 +58,11 @@ namespace SecureChat.Services
             _store.TryRemove(key, out _);
             _logger.LogInformation("OTP verified for {Email}", MaskEmail(email));
             return Task.FromResult(OtpVerifyStatus.Success);
+        }
+
+        private static string MakeKey(string email, string purpose)
+        {
+            return $"{purpose}:{email.Trim().ToLowerInvariant()}";
         }
 
         private void PruneExpiredEntries()

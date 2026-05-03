@@ -38,6 +38,8 @@ builder.Services.AddScoped<CallRepository>();
 builder.Services.AddScoped<JwtTokenService>();
 // Email service used by forgot-password flow. Registered as singleton so it can be reused.
 builder.Services.AddSingleton<EmailService>();
+// OtpService holds in-memory OTP state and must be a singleton so state is preserved across requests
+builder.Services.AddSingleton<OtpService>();
 builder.Services.AddSingleton<ForgotPasswordService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"]
@@ -91,9 +93,10 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAn
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment()) {
-	app.UseSwagger();
+    app.UseSwagger();
 	app.UseSwaggerUI(c => {
 		c.SwaggerEndpoint("/swagger/v1/swagger.json", "SecureChat API v1");
+		// Mount Swagger UI at root to restore previous behavior
 		c.RoutePrefix = string.Empty;
 	});
 }

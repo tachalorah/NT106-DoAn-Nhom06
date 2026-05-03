@@ -313,15 +313,52 @@ namespace SecureChat.Client
             if (string.IsNullOrWhiteSpace(_tbEmail.Text)) { ShowError("Vui lòng nhập Email."); return; }
 
             var req = new LoginRequest(_tbEmail.Text, _tbPassword.Text, Environment.MachineName);
-            var (ok, res, err) = await ApiClient.Instance.PostAsync<LoginRequest, AuthResponse>("api/auth/login", req);
+            var (ok, resElem, err) = await ApiClient.Instance.PostAsync<LoginRequest, System.Text.Json.JsonElement>("api/auth/login", req);
 
-            if (ok && res != null)
+            if (!ok)
             {
-                ApiClient.Instance.SetAccessToken(res.AccessToken);
-                new frmMainChat().Show();
-                this.Hide();
+                ShowError(err);
+                return;
             }
-            else ShowError(err);
+
+            try
+            {
+                if (resElem.ValueKind == System.Text.Json.JsonValueKind.Object && resElem.TryGetProperty("requires2FA", out var r) && r.GetBoolean())
+                {
+                    // open two-factor form; pass the identifier (username or email user entered)
+                    using var dlg = new frmTwoFA(_tbEmail.Text);
+                    dlg.StartPosition = FormStartPosition.CenterParent;
+                    if (dlg.ShowDialog(this) == DialogResult.OK)
+                    {
+                        // token should have been set by frmTwoFA
+                        new frmMainChat().Show();
+                        this.Hide();
+                        return;
+                    }
+                    else
+                    {
+                        ShowError("Xác minh 2 bước không thành công hoặc bị hủy.");
+                        return;
+                    }
+                }
+
+                // Fallback: try to parse as AuthResponse (legacy path)
+                var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var auth = System.Text.Json.JsonSerializer.Deserialize<SecureChat.DTOs.AuthResponse>(resElem.GetRawText(), options);
+                if (auth != null)
+                {
+                    ApiClient.Instance.SetAccessToken(auth.AccessToken);
+                    new frmMainChat().Show();
+                    this.Hide();
+                    return;
+                }
+
+                ShowError("Đăng nhập thất bại.");
+            }
+            catch (Exception ex)
+            {
+                ShowError("Lỗi xử lý phản hồi đăng nhập: " + ex.Message);
+            }
         }
 
         private void BtnRegister_Click(object sender, EventArgs e)
