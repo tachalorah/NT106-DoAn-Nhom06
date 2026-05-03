@@ -36,14 +36,15 @@ namespace SecureChat.Client.Forms.Chat
         private const int BOTTOM_HEIGHT = 60;
         private const int CONTENT_HEIGHT = FORM_HEIGHT - BOTTOM_HEIGHT;
         private const int SCROLLBAR_WIDTH = 18;
-        private static readonly Color C_BG = Color.FromArgb(0x17, 0x21, 0x2B);
-        private static readonly Color C_SURFACE = Color.FromArgb(0x1E, 0x2C, 0x3A);
-        private static readonly Color C_INPUT_BG = Color.FromArgb(0x14, 0x1D, 0x27);
+        // Light theme palette (keep accent color unchanged)
+        private static readonly Color C_BG = Color.White;
+        private static readonly Color C_SURFACE = Color.White;
+        private static readonly Color C_INPUT_BG = Color.White;
         private static readonly Color C_ACCENT = Color.FromArgb(0x2A, 0xAB, 0xEE);
-        private static readonly Color C_TEXT = Color.FromArgb(0xF5, 0xF5, 0xF5);
-        private static readonly Color C_SUBTEXT = Color.FromArgb(0x70, 0x84, 0x99);
-        private static readonly Color C_SEPARATOR = Color.FromArgb(0x1B, 0x29, 0x39);
-        private static readonly Color C_UNDERLINE = Color.FromArgb(0x2B, 0x52, 0x78);
+        private static readonly Color C_TEXT = Color.FromArgb(0x14, 0x1D, 0x27);
+        private static readonly Color C_SUBTEXT = Color.FromArgb(0x70, 0x78, 0x85);
+        private static readonly Color C_SEPARATOR = Color.FromArgb(0xE6, 0xE9, 0xEE);
+        private static readonly Color C_UNDERLINE = Color.FromArgb(0xDD, 0xDD, 0xDD);
         private static readonly Color C_AVATAR_D = Color.FromArgb(0x40, 0x90, 0xCB);
 
         // ═══════════════════════════════════════════════════

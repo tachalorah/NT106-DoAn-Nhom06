@@ -11,9 +11,10 @@ namespace SecureChat.Client.Forms.Profile
     {
         private void InitializeComponent() { /* built in code */ }
 
-        private static readonly Color C_BG = Color.FromArgb(0x14, 0x1D, 0x27);
-        private static readonly Color C_TEXT = Color.FromArgb(0xF5, 0xF5, 0xF5);
-        private static readonly Color C_SUB = Color.FromArgb(0x89, 0x9A, 0xB4);
+        // Light theme adjustments
+        private static readonly Color C_BG = Color.White;
+        private static readonly Color C_TEXT = Color.FromArgb(0x14, 0x1D, 0x27); // dark primary text
+        private static readonly Color C_SUB = Color.FromArgb(0x70, 0x78, 0x85); // subtle secondary
         private static readonly Color C_ACCENT = Color.FromArgb(0x2A, 0xAB, 0xEE);
 
         private readonly ProfileModel _profile;

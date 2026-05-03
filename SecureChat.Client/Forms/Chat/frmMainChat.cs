@@ -96,38 +96,40 @@ namespace SecureChat.Client
         private string _replyingToMessageId = null;
 
         // Khai báo Dictionary với Tuple 5 tham số (Thêm Id ở đầu)
-        private readonly Dictionary<string, List<(string Id, string Text, bool Out, string Time, string Sender)>> _allMsgs = new()
+        private enum MessageDeliveryStatus { Pending, Sent, Seen }
+
+        private readonly Dictionary<string, List<(string Id, string Text, bool Out, string Time, string Sender, MessageDeliveryStatus Status)>> _allMsgs = new()
         {
             ["1"] = new()
     {
-        ("msg_1", "Hello hello hello!", false, "12:51 PM", "Hang Hieu"),
-        ("msg_2", "Tuấn Thành you've been removed from the group chat", false, "1:01 PM", "Bot"),
-        ("msg_3", "Quack Cyber added Sim 18a3", false, "10:10 PM", "Bot"),
-        ("msg_4", "Tuấn Thành, you've been wonderful friends for so long. I could never imagine you doing this to me.", true, "10:15 PM", ""),
-        ("msg_5", "Search it", true, "10:16 PM", ""),
-        ("msg_6", "file::abcdef::abcdef::14.5 KB", false, "1:57 AM", "Bot")
+        ("msg_1", "Hello hello hello!", false, "12:51 PM", "Hang Hieu", MessageDeliveryStatus.Sent),
+        ("msg_2", "Tuấn Thành you've been removed from the group chat", false, "1:01 PM", "Bot", MessageDeliveryStatus.Sent),
+        ("msg_3", "Quack Cyber added Sim 18a3", false, "10:10 PM", "Bot", MessageDeliveryStatus.Sent),
+        ("msg_4", "Tuấn Thành, you've been wonderful friends for so long. I could never imagine you doing this to me.", true, "10:15 PM", "", MessageDeliveryStatus.Sent),
+        ("msg_5", "Search it", true, "10:16 PM", "", MessageDeliveryStatus.Sent),
+        ("msg_6", "file::abcdef::abcdef::14.5 KB", false, "1:57 AM", "Bot", MessageDeliveryStatus.Sent)
     },
             ["2"] = new()
     {
-        ("msg_7", "ê mấy ông ơi nộp bài chưa", false, "8:28 AM", "Hang Hieu"),
-        ("msg_8", "chưa ông ơi", false, "8:29 AM", "Tuấn Thành"),
-        ("msg_9", "add new contact á", false, "8:29 AM", "Hang Hieu"),
-        ("msg_10", "tui vừa làm với ô đó", false, "8:30 AM", "Hang Hieu"),
-        ("msg_11", "nó tự chấp nhận kb luôn mà", true, "8:30 AM", ""),
-        ("msg_12", "af af", false, "8:31 AM", "Hang Hieu"),
-        ("msg_13", "oke chút nữa tui push lên", true, "8:32 AM", ""),
-        ("msg_14", "ừ nhanh lên nha còn test", false, "8:33 AM", "Tuấn Thành"),
+        ("msg_7", "ê mấy ông ơi nộp bài chưa", false, "8:28 AM", "Hang Hieu", MessageDeliveryStatus.Sent),
+        ("msg_8", "chưa ông ơi", false, "8:29 AM", "Tuấn Thành", MessageDeliveryStatus.Sent),
+        ("msg_9", "add new contact á", false, "8:29 AM", "Hang Hieu", MessageDeliveryStatus.Sent),
+        ("msg_10", "tui vừa làm với ô đó", false, "8:30 AM", "Hang Hieu", MessageDeliveryStatus.Sent),
+        ("msg_11", "nó tự chấp nhận kb luôn mà", true, "8:30 AM", "", MessageDeliveryStatus.Sent),
+        ("msg_12", "af af", false, "8:31 AM", "Hang Hieu", MessageDeliveryStatus.Sent),
+        ("msg_13", "oke chút nữa tui push lên", true, "8:32 AM", "", MessageDeliveryStatus.Sent),
+        ("msg_14", "ừ nhanh lên nha còn test", false, "8:33 AM", "Tuấn Thành", MessageDeliveryStatus.Sent),
     },
             ["3"] = new()
     {
-        ("msg_15", "Hey, lâu rồi không gặp!", false, "10 Mar", "Tuấn Thành"),
-        ("msg_16", "Ừ, dạo này bận lắm", true, "10 Mar", ""),
-        ("msg_17", "Sure", false, "10 Mar", "Tuấn Thành"),
+        ("msg_15", "Hey, lâu rồi không gặp!", false, "10 Mar", "Tuấn Thành", MessageDeliveryStatus.Sent),
+        ("msg_16", "Ừ, dạo này bận lắm", true, "10 Mar", "", MessageDeliveryStatus.Sent),
+        ("msg_17", "Sure", false, "10 Mar", "Tuấn Thành", MessageDeliveryStatus.Sent),
     },
         };
 
         // Cập nhật lại _currentMsgs sang Tuple 5 tham số
-        private List<(string Id, string Text, bool Out, string Time, string Sender)> _currentMsgs =>
+        private List<(string Id, string Text, bool Out, string Time, string Sender, MessageDeliveryStatus Status)> _currentMsgs =>
             _allMsgs.TryGetValue(_activeConvId, out var list) ? list : new();
 
         private readonly Dictionary<string, bool> _settingsToggles = new(); // công tắc Night mode
@@ -835,9 +837,36 @@ namespace SecureChat.Client
                 pollText += $"\n{i + 1}. {dlg.PollOptions[i]}";
 
             // Thêm Guid.NewGuid().ToString() vào đầu để làm ID cho tin nhắn chứa Poll
-            _currentMsgs.Add((Guid.NewGuid().ToString(), pollText, true, DateTime.Now.ToString("h:mm tt"), ""));
+            _currentMsgs.Add((Guid.NewGuid().ToString(), pollText, true, DateTime.Now.ToString("h:mm tt"), "", MessageDeliveryStatus.Sent));
             BuildMessages();
         }
+
+        // Update message delivery/read status. Thread-safe UI update using BeginInvoke.
+        private void UpdateMessageStatus(string messageId, MessageDeliveryStatus newStatus)
+        {
+            if (string.IsNullOrWhiteSpace(messageId)) return;
+
+            foreach (var key in _allMsgs.Keys)
+            {
+                var list = _allMsgs[key];
+                var idx = list.FindIndex(m => m.Id == messageId);
+                if (idx >= 0)
+                {
+                    var m = list[idx];
+                    list[idx] = (m.Id, m.Text, m.Out, m.Time, m.Sender, newStatus);
+                    try
+                    {
+                        if (!this.IsDisposed)
+                            this.BeginInvoke(new Action(() => BuildMessages()));
+                    }
+                    catch { }
+                    return;
+                }
+            }
+        }
+
+        public void MarkMessageDelivered(string messageId) => UpdateMessageStatus(messageId, MessageDeliveryStatus.Sent);
+        public void MarkMessageSeen(string messageId) => UpdateMessageStatus(messageId, MessageDeliveryStatus.Seen);
 
         private void ClearHistory()
         {
@@ -1871,17 +1900,42 @@ namespace SecureChat.Client
                 var textRect = new RectangleF(x + pad, currentY, bw - pad * 2, sz.Height);
                 e.Graphics.DrawString(actualText, TG.FontRegular(9.5f), new SolidBrush(TG.TextPrimary), textRect);
 
-                // 4. Thời gian và dấu tick ✓✓
+                // 4. Thời gian và dấu tick ✓✓ (và trạng thái đọc cho outgoing)
                 var timeSz = e.Graphics.MeasureString(time, TG.FontRegular(7.5f));
-                float tx = x + bw - timeSz.Width - pad - (isOut ? 26 : 0);
                 float ty = y + bh - timeSz.Height - 6;
-                e.Graphics.DrawString(time, TG.FontRegular(7.5f), new SolidBrush(TG.TextTime), tx, ty);
 
-                if (isOut)
+                if (!isOut)
                 {
-                    float tickX = x + bw - pad - 22;
+                    float tx = x + bw - timeSz.Width - pad;
+                    e.Graphics.DrawString(time, TG.FontRegular(7.5f), new SolidBrush(TG.TextTime), tx, ty);
+                }
+                else
+                {
+                    // Draw status text (e.g., "Đã gửi" / "Đã xem") left of the time
+                    string statusText = "";
+                    try
+                    {
+                        var msgTuple = _currentMsgs.Find(m => m.Id == messageId);
+                        if (!string.IsNullOrEmpty(msgTuple.Id))
+                        {
+                            if (msgTuple.Status == MessageDeliveryStatus.Seen) statusText = "Đã xem";
+                            else if (msgTuple.Status == MessageDeliveryStatus.Sent) statusText = "Đã gửi";
+                        }
+                    }
+                    catch { }
+
+                    var statusFont = TG.FontRegular(7.5f);
+                    var statusBrush = new SolidBrush(TG.TextSecondary);
+                    var statusSz = e.Graphics.MeasureString(statusText, statusFont);
+
+                    float tx = x + bw - timeSz.Width - pad - 26;
+                    float statusX = tx - statusSz.Width - 6;
+                    e.Graphics.DrawString(statusText, statusFont, statusBrush, statusX, ty);
+
                     using var tickFont = new Font("Segoe UI Symbol", 8f, FontStyle.Bold);
+                    float tickX = x + bw - pad - 22;
                     e.Graphics.DrawString("✓✓", tickFont, new SolidBrush(TG.Blue), tickX, ty - 1);
+                    e.Graphics.DrawString(time, TG.FontRegular(7.5f), new SolidBrush(TG.TextTime), tx, ty);
                 }
             };
 
@@ -2094,7 +2148,7 @@ namespace SecureChat.Client
                     if (parts.Length == 3) finalNewText = $"reply::{parts[0]}::{parts[1]}::{newText}";
                 }
 
-                _currentMsgs[msgIndex] = (msg.Id, finalNewText, msg.Out, msg.Time, msg.Sender);
+                _currentMsgs[msgIndex] = (msg.Id, finalNewText, msg.Out, msg.Time, msg.Sender, msg.Status);
                 BuildMessages();
             }
         }
@@ -2216,7 +2270,7 @@ namespace SecureChat.Client
                 }
             }
 
-            _currentMsgs.Add((Guid.NewGuid().ToString(), finalMessageText, true, DateTime.Now.ToString("h:mm tt"), ""));
+            _currentMsgs.Add((Guid.NewGuid().ToString(), finalMessageText, true, DateTime.Now.ToString("h:mm tt"), "", MessageDeliveryStatus.Sent));
 
             // Dọn dẹp giao diện sau khi gửi
             _pnlReplyContext.Visible = false;
