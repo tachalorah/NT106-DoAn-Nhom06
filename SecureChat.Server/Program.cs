@@ -93,9 +93,10 @@ builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAn
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment()) {
-	app.UseSwagger();
+    app.UseSwagger();
 	app.UseSwaggerUI(c => {
 		c.SwaggerEndpoint("/swagger/v1/swagger.json", "SecureChat API v1");
+		// Mount Swagger UI at root to restore previous behavior
 		c.RoutePrefix = string.Empty;
 	});
 }
