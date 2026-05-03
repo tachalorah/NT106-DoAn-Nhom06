@@ -35,7 +35,9 @@ builder.Services.AddScoped<FriendRepository>();
 builder.Services.AddScoped<ConversationRepository>();
 builder.Services.AddScoped<MessageRepository>();
 builder.Services.AddScoped<CallRepository>();
-builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<JwtTokenService>();
+// Email service used by forgot-password flow. Registered as singleton so it can be reused.
+builder.Services.AddSingleton<EmailService>();
 builder.Services.AddSingleton<ForgotPasswordService>();
 
 var jwtKey = builder.Configuration["Jwt:Key"]

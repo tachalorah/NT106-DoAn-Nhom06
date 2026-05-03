@@ -7,7 +7,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace SecureChat.Services
 {
-	public class TokenService(IConfiguration config)
+	public class JwtTokenService(IConfiguration config)
 	{
 		static readonly JwtSecurityTokenHandler Handler = new();
 
