@@ -3,6 +3,8 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.ProgressBar;
+using System.Threading.Tasks;
+using SecureChat.Client.Services;
 
 namespace SecureChat.Client
 {
@@ -11,7 +13,8 @@ namespace SecureChat.Client
 
     public class frmTwoFA : Form
     {
-        private TextBox[] _otpBoxes = new TextBox[5];
+        private readonly string _identifier;
+        private TextBox[] _otpBoxes = new TextBox[6];
         private TelegramButton _btnConfirm;
         private Label _lblTitle, _lblDesc, _lblResend, _lblTimer;
 
@@ -21,19 +24,28 @@ namespace SecureChat.Client
         private int _countdown = 60;
         private Label _lblError;
 
-        public frmTwoFA()
+        public frmTwoFA(string identifier)
         {
+            _identifier = identifier ?? string.Empty;
             InitializeComponent();
 
             // vì khi biết email thì gửi Opt đầu tiên, lúc này bộ đếm sẽ chạy lần đầu tiên
             StartCountdown();
         }
 
+        // Parameterless constructor for designer
+        public frmTwoFA()
+        {
+            _identifier = string.Empty;
+            InitializeComponent();
+            StartCountdown();
+        }
+
         private void InitializeComponent()
         {
             Text = "Xác minh 2 bước";
-            Size = new Size(380, 480);
-            MinimumSize = new Size(360, 450);
+            Size = new Size(460, 560);
+            MinimumSize = new Size(420, 520);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
@@ -41,22 +53,22 @@ namespace SecureChat.Client
             Font = TG.FontRegular(9.5f);
 
             // ── Header xanh ──────────────────────────
-            var header = new Panel { Height = 140, BackColor = TG.Blue, Dock = DockStyle.Top };
+            var header = new Panel { Height = 180, BackColor = TG.Blue, Dock = DockStyle.Top };
 
             var lblIcon = new Label
             {
                 Text = "🔐",
-                Font = new Font("Segoe UI Emoji", 36f),
+                Font = new Font("Segoe UI Emoji", 42f),
                 ForeColor = Color.White,
                 AutoSize = false,
-                Size = new Size(60, 60),
+                Size = new Size(72, 72),
                 TextAlign = ContentAlignment.MiddleCenter,
                 BackColor = Color.Transparent,
             };
             var lblH = new Label
             {
                 Text = "Xác minh 2 bước",
-                Font = TG.FontSemiBold(13f),
+                Font = TG.FontSemiBold(15f),
                 ForeColor = Color.White,
                 AutoSize = false,
                 Height = 28,
@@ -84,7 +96,7 @@ namespace SecureChat.Client
             // ── Body ──────────────────────────────────
             _lblDesc = new Label
             {
-                Text = "Nhập 5 chữ số trong mã xác nhận:",
+                Text = "Nhập 6 chữ số trong mã xác nhận:",
                 Font = TG.FontRegular(9.5f),
                 ForeColor = TG.TextSecondary,
                 AutoSize = false,
@@ -93,27 +105,27 @@ namespace SecureChat.Client
                 BackColor = Color.Transparent,
             };
 
-            // OTP boxes for 5 Textboxes
-            var pnlOtp = new Panel { Height = 58, BackColor = Color.Transparent };
-            for (int i = 0; i < 5; i++)
+            // OTP boxes for 6 Textboxes
+            var pnlOtp = new Panel { Height = 78, BackColor = Color.Transparent };
+            for (int i = 0; i < 6; i++)
             {
                 int idx = i;
                 var box = new TextBox
                 {
                     MaxLength = 1,
-                    Font = TG.FontTitle(18f),
+                    Font = TG.FontTitle(22f),
                     ForeColor = TG.Blue,
                     TextAlign = HorizontalAlignment.Center, // Căn giữa ký tự cho một TextBox
                     BackColor = Color.White,
                     BorderStyle = BorderStyle.None, // Ẩn viền mặc định (tự vẽ viền bo góc)
-                    Size = new Size(48, 56),
+                    Size = new Size(56, 68),
                 };
 
                 // Panel bọc ngoài TextBox để vẽ viền bo góc tùy chỉnh.
                 // Mỗi wrap bọc 1 Textbox
                 var wrap = new Panel
                 {
-                    Size = new Size(50, 58),
+                    Size = new Size(58, 78),
                     BackColor = Color.White,
                 };
 
@@ -143,7 +155,7 @@ namespace SecureChat.Client
                     e.Graphics.DrawPath(new Pen(border, bw), path); // Vẽ viền
                 };
                 wrap.Controls.Add(box);
-                box.Location = new Point(1, (58 - box.Height) / 2); // Căn giữa dọc trong wrap
+                box.Location = new Point(1, (78 - box.Height) / 2); // Căn giữa dọc trong wrap
                 // X = 1 thì tự căn chiều ngang rồi
 
                 // Auto advance
@@ -152,11 +164,11 @@ namespace SecureChat.Client
                     wrap.Invalidate(); // Vẽ lại viền
 
                     // Nhập xong → tự nhảy sang ô tiếp theo
-                    if (!string.IsNullOrEmpty(box.Text) && idx < 4)
+                    if (!string.IsNullOrEmpty(box.Text) && idx < 5)
                         _otpBoxes[idx + 1].Focus();
 
                     // Ô cuối → focus vào nút Xác nhận
-                    if (!string.IsNullOrEmpty(box.Text) && idx == 4)
+                    if (!string.IsNullOrEmpty(box.Text) && idx == 5)
                         _btnConfirm.Focus();
                 };
 
@@ -177,12 +189,12 @@ namespace SecureChat.Client
             // Layout OTP
             pnlOtp.Resize += (s, e) =>
             {
-                int total = 5 * 50 + 4 * 8; // // Tổng chiều rộng: 5 ô×50px + 4 khoảng×8px = 282px
-                int startX = (pnlOtp.Width - total) / 2; // Tính điểm bắt đầu để căn giữa
+                int boxW = 58;
+                int spacing = 12;
+                int total = 6 * boxW + 5 * spacing; // 6 boxes + spacing
+                int startX = (pnlOtp.Width - total) / 2;
                 for (int i = 0; i < pnlOtp.Controls.Count; i++)
-                    pnlOtp.Controls[i].Location = new Point(startX + i * 58, 0);
-                // _otpBoxes[i].Parent.Location = new Point(startX + i * (cellWidth + spacing), 0);
-                // Mỗi ô cách nhau 58px (50 rộng + 8 khoảng)
+                    pnlOtp.Controls[i].Location = new Point(startX + i * (boxW + spacing), 0);
             };
 
             // Error
@@ -233,12 +245,37 @@ namespace SecureChat.Client
                 Enabled = false, // Vô hiệu ban đầu (phải chờ 60 giây)
             };
 
-            
             lnkResend.LinkClicked += (s, e) =>
             {
-                _countdown = 60;           // Reset về 60 giây
-                lnkResend.Enabled = false; // Vô hiệu lại
-                StartCountdown();          // Bắt đầu đếm mới
+                // Call server to resend OTP. Do not restart countdown unless server confirms.
+                lnkResend.Enabled = false;
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        var payload = new { Identifier = _identifier };
+                        var (ok, _, err) = await ApiClient.Instance.PostAsync<object, System.Text.Json.JsonElement>("api/auth/resend-login-otp", payload);
+                        if (!ok)
+                        {
+                            this.Invoke(() => { ShowError(err); lnkResend.Enabled = true; });
+                            return;
+                        }
+
+                        // success: reset countdown and disable resend until timer expires
+                        this.Invoke(() =>
+                        {
+                            _countdown = 60;
+                            _lblTimer.Text = $"({_countdown}s)";
+                            StartCountdown();
+                            HideError();
+                            MessageBox.Show(this, "OTP has been resent to your email.", "Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        this.Invoke(() => { ShowError("Gửi lại thất bại: " + ex.Message); lnkResend.Enabled = true; });
+                    }
+                });
             };
 
             // Panel chứa toàn bộ nội dung bên dưới header, padding 28px hai bên
@@ -249,8 +286,8 @@ namespace SecureChat.Client
             pnlBody.Resize += (s, e) =>
             {
                 int pad = 28, w = pnlBody.Width - pad * 2, y = 16;
-                _lblDesc.SetBounds(0, y, pnlBody.Width, 24); y += 32;
-                pnlOtp.SetBounds(pad, y, w, 58); y += 68;
+                _lblDesc.SetBounds(0, y, pnlBody.Width, 28); y += 36;
+                pnlOtp.SetBounds(pad, y, w, 78); y += 88;
                 _lblError.SetBounds(0, y, pnlBody.Width, 20); y += 24;
                 _btnConfirm.SetBounds(pad, y, w, 46); y += 58;
                 _lblResend.Location = new Point(pad, y);
@@ -285,16 +322,42 @@ namespace SecureChat.Client
         private void BtnConfirm_Click(object sender, EventArgs e)
         {
             string code = GetOtpCode();
-            if (code.Length < 5) { ShowError("Vui lòng nhập đủ 5 chữ số."); return; }
+            if (code.Length < 6) { ShowError("Vui lòng nhập đủ 6 chữ số."); return; }
             HideError();
-            // Mock: code đúng = "12345"
-            if (code == "12345")
+
+            // Call server verify-login-otp
+            _btnConfirm.Enabled = false;
+            Task.Run(async () =>
             {
-                MessageBox.Show("Xác minh thành công!", "SecureChat", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                DialogResult = DialogResult.OK;
-                Close();
-            }
-            else ShowError("Mã xác nhận không đúng. Vui lòng thử lại.");
+                try
+                {
+                    var payload = new { Identifier = _identifier, Otp = code, DeviceName = Environment.MachineName };
+                    var (ok, res, err) = await ApiClient.Instance.PostAsync<object, System.Text.Json.JsonElement>("api/auth/verify-login-otp", payload);
+                    if (!ok)
+                    {
+                        this.Invoke(() => { ShowError(err); _btnConfirm.Enabled = true; });
+                        return;
+                    }
+
+                    // success -> extract token
+                    if (res.ValueKind == System.Text.Json.JsonValueKind.Object && res.TryGetProperty("token", out var tprop))
+                    {
+                        var token = tprop.GetString();
+                        if (!string.IsNullOrWhiteSpace(token))
+                        {
+                            ApiClient.Instance.SetAccessToken(token);
+                            this.Invoke(() => { DialogResult = DialogResult.OK; Close(); });
+                            return;
+                        }
+                    }
+
+                    this.Invoke(() => { ShowError("Xác thực thất bại."); _btnConfirm.Enabled = true; });
+                }
+                catch (Exception ex)
+                {
+                    this.Invoke(() => { ShowError("Lỗi: " + ex.Message); _btnConfirm.Enabled = true; });
+                }
+            });
         }
 
         private void ShowError(string msg) { _lblError.Text = msg; _lblError.Visible = true; }

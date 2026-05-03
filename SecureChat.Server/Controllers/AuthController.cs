@@ -16,7 +16,7 @@ namespace SecureChat.Controllers
 {
 	[ApiController]
 	[Route("api/auth")]
-  public class AuthController(UserRepository users, JwtTokenService tokens, IConfiguration config, ForgotPasswordService forgotPasswordService, ILogger<AuthController> logger) : BaseController
+  public class AuthController(UserRepository users, JwtTokenService tokens, IConfiguration config, ForgotPasswordService forgotPasswordService, OtpService otpService, EmailService emailService, ILogger<AuthController> logger) : BaseController
 	{
 		[HttpPost("register")]
 		public async Task<IActionResult> Register([FromBody] RegisterRequest req)
@@ -43,6 +43,81 @@ namespace SecureChat.Controllers
 			return Ok(new { message = "Đăng ký thành công." });
 		}
 
+		public record ResendLoginOtpRequest(string Identifier);
+
+		[HttpPost("resend-login-otp")]
+		public async Task<IActionResult> ResendLoginOtp([FromBody] ResendLoginOtpRequest req)
+		{
+			if (string.IsNullOrWhiteSpace(req.Identifier))
+				return BadRequest(new { message = "Invalid identifier.", errorCode = "INVALID_IDENTIFIER" });
+
+			var identifier = req.Identifier.Trim();
+			User? user = null;
+			if (identifier.Contains('@')) user = await users.GetByEmailAsync(identifier);
+			else user = await users.GetByUsernameAsync(identifier);
+
+			if (user is null)
+				return NotFound(new { message = "User not found.", errorCode = "USER_NOT_FOUND" });
+
+			var otp = await otpService.GenerateOtpAsync(user.Email, "login-2fa");
+			try
+			{
+				await emailService.SendOtpEmailAsync(user.Email, otp);
+			}
+			catch (Exception ex)
+			{
+				logger.LogError(ex, "Failed to resend login OTP to {Email}", user.Email);
+			}
+
+			return Ok(new { message = "OTP resent" });
+		}
+
+
+		public record VerifyLoginOtpRequest(string Identifier, string Otp, string? DeviceName);
+
+		[HttpPost("verify-login-otp")]
+		public async Task<IActionResult> VerifyLoginOtp([FromBody] VerifyLoginOtpRequest req)
+		{
+			if (string.IsNullOrWhiteSpace(req.Identifier))
+				return BadRequest(new { message = "Invalid identifier.", errorCode = "INVALID_IDENTIFIER" });
+
+			if (string.IsNullOrWhiteSpace(req.Otp) || req.Otp.Length != 6)
+				return BadRequest(new { message = "Invalid OTP.", errorCode = "INVALID_OTP" });
+
+			// Resolve identifier to user (username or email)
+			var identifier = req.Identifier.Trim();
+			User? user = null;
+			if (identifier.Contains('@')) user = await users.GetByEmailAsync(identifier);
+			else user = await users.GetByUsernameAsync(identifier);
+
+			if (user is null)
+				return NotFound(new { message = "User not found.", errorCode = "USER_NOT_FOUND" });
+
+			// Verify using the user's email and the specific purpose for login 2FA
+			var status = await otpService.VerifyOtpAsync(user.Email, req.Otp, "login-2fa");
+			if (status == OtpVerifyStatus.Expired)
+				return BadRequest(new { message = "OTP expired.", errorCode = "EXPIRED_OTP" });
+			if (status != OtpVerifyStatus.Success)
+				return BadRequest(new { message = "Invalid OTP.", errorCode = "INVALID_OTP" });
+
+			// OTP valid - create session and issue tokens
+			var sessionID = NewID();
+			var accessToken = tokens.GenerateAccessToken(user.UserID, sessionID);
+			var refreshToken = JwtTokenService.GenerateRefreshToken();
+			var expiry = JwtTokenService.RefreshTokenExpiry(config);
+
+			await users.CreateSessionAsync(new UserSession {
+				SessionID = sessionID,
+				UserID = user.UserID,
+				DeviceName = req.DeviceName ?? "Unknown",
+				RefreshToken = refreshToken,
+				ExpiresAt = expiry,
+				LastUsedAt = DateTime.UtcNow
+			});
+
+			return Ok(new { token = accessToken, refreshToken = refreshToken, expiresIn = (int)TimeSpan.FromMinutes(double.Parse(config["Jwt:AccessTokenMinutes"] ?? "15")).TotalSeconds });
+		}
+
 		[HttpPost("login")]
 		public async Task<IActionResult> Login([FromBody] LoginRequest req)
 		{
@@ -53,21 +128,26 @@ namespace SecureChat.Controllers
             if (user is null || !PasswordHasher.Verify(req.HashedPassword, user.HashedPassword, user.KeySalt))
                 return Unauthorized(new { error = "Thông tin đăng nhập không hợp lệ." });
 
-            var sessionID = NewID();
-			var accessToken = tokens.GenerateAccessToken(user.UserID, sessionID);
-			var refreshToken = JwtTokenService.GenerateRefreshToken();
-			var expiry = JwtTokenService.RefreshTokenExpiry(config);
+			// Generate OTP for login 2FA using OtpService and send via EmailService
+            var otp = await otpService.GenerateOtpAsync(user.Email, "login-2fa");
+			try
+			{
+				await emailService.SendOtpEmailAsync(user.Email, otp);
+			}
+			catch (Exception ex)
+			{
+				logger.LogError(ex, "Failed to send login OTP to {Email}", user.Email);
+			}
 
-			await users.CreateSessionAsync(new UserSession {
-				SessionID    = sessionID,
-				UserID       = user.UserID,
-				DeviceName   = req.DeviceName ?? "Unknown",
-				RefreshToken = refreshToken,
-				ExpiresAt    = expiry,
-				LastUsedAt   = DateTime.UtcNow
-			});
+			// Return response indicating 2FA required. Mask email for display.
+			string MaskEmail(string e)
+			{
+				var at = e.IndexOf('@');
+				if (at <= 1) return "***";
+				return $"{e[0]}***{e[(at - 1)..]}";
+			}
 
-			return Ok(new AuthResponse(accessToken, refreshToken, expiry, UserResponse.From(user)));
+			return Ok(new { requires2FA = true, email = MaskEmail(user.Email) });
 		}
 
 		[HttpPost("refresh")]
