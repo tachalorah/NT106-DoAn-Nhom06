@@ -16,7 +16,7 @@ namespace SecureChat.Controllers
 {
 	[ApiController]
 	[Route("api/auth")]
-  public class AuthController(UserRepository users, TokenService tokens, IConfiguration config, ForgotPasswordService forgotPasswordService, ILogger<AuthController> logger) : BaseController
+  public class AuthController(UserRepository users, JwtTokenService tokens, IConfiguration config, ForgotPasswordService forgotPasswordService, ILogger<AuthController> logger) : BaseController
 	{
 		[HttpPost("register")]
 		public async Task<IActionResult> Register([FromBody] RegisterRequest req)
@@ -55,8 +55,8 @@ namespace SecureChat.Controllers
 
             var sessionID = NewID();
 			var accessToken = tokens.GenerateAccessToken(user.UserID, sessionID);
-			var refreshToken = TokenService.GenerateRefreshToken();
-			var expiry = TokenService.RefreshTokenExpiry(config);
+			var refreshToken = JwtTokenService.GenerateRefreshToken();
+			var expiry = JwtTokenService.RefreshTokenExpiry(config);
 
 			await users.CreateSessionAsync(new UserSession {
 				SessionID    = sessionID,
@@ -83,7 +83,7 @@ namespace SecureChat.Controllers
 			}
 
 			var newAccess  = tokens.GenerateAccessToken(session.UserID, session.SessionID);
-			var newExpiry  = TokenService.RefreshTokenExpiry(config);
+			var newExpiry  = JwtTokenService.RefreshTokenExpiry(config);
 
 			await users.UpdateSessionAsync(session.SessionID, req.RefreshToken, newExpiry);
 			return Ok(new AuthResponse(newAccess, req.RefreshToken, newExpiry, UserResponse.From(session.User)));

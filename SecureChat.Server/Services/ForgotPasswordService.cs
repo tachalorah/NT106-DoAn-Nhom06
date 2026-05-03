@@ -1,5 +1,10 @@
 using System.Collections.Concurrent;
+using System;
+using System.Collections.Concurrent;
+using System.Linq;
 using System.Security.Cryptography;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace SecureChat.Services
 {
@@ -17,11 +22,12 @@ namespace SecureChat.Services
         Expired
     }
 
-    public sealed class ForgotPasswordService(ILogger<ForgotPasswordService> logger)
+    public sealed class ForgotPasswordService(EmailService emailService, ILogger<ForgotPasswordService> logger)
     {
         private readonly ConcurrentDictionary<string, OtpEntry> _otpByEmail = new(StringComparer.OrdinalIgnoreCase);
         private readonly ConcurrentDictionary<string, ResetTokenEntry> _resetTokens = new();
         private readonly ILogger<ForgotPasswordService> _logger = logger;
+        private readonly EmailService _emailService = emailService;
 
         public Task CreateOtpAsync(string email)
         {
@@ -41,6 +47,20 @@ namespace SecureChat.Services
             }
 
             _logger.LogInformation("ForgotPassword OTP generated for {Email}. OTP={Otp}. ExpiresAt={ExpiresAt}", MaskEmail(key), otp, expiresAt);
+            // Attempt to send OTP email asynchronously. Fire-and-forget but log result.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var ok = await _emailService.SendOtpEmailAsync(key, otp);
+                    if (!ok)
+                        _logger.LogWarning("Sending OTP email failed for {Email}", MaskEmail(key));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Unhandled error while sending OTP email to {Email}", MaskEmail(key));
+                }
+            });
 
             return Task.CompletedTask;
         }
