@@ -14,7 +14,6 @@
 		<Folder Include="Media\" />
 		<Folder Include="Helpers\" />
 		<Folder Include="Security\" />
-		<Folder Include="Services\" />
 	</ItemGroup>
 
 	<ItemGroup>
