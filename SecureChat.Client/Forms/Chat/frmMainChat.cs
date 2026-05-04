@@ -59,6 +59,9 @@ namespace SecureChat.Client
         private Label _lblReplySender;
         private Label _lblReplyText;
 
+        // File transfer helper (moves low-level transfer logic out of UI)
+        private readonly FileTransferService _fileTransfer = new();
+
 
         // ── Settings menu controls ─────────────────
         private Panel _pnlSettingsHeader;
@@ -1124,6 +1127,70 @@ namespace SecureChat.Client
             // 2. TẠO KHUNG NHẬP CHAT BÌNH THƯỜNG (Có TextBox, Nút gửi...)
             // =========================================================
             var btnAttach = MakeInputBtn("📎");
+            btnAttach.Click += async (s, e) =>
+            {
+                try
+                {
+                    using var ofd = new OpenFileDialog { Multiselect = false };
+                    if (ofd.ShowDialog(this) != DialogResult.OK) return;
+
+                    var path = ofd.FileName;
+                    if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+
+                    // Compute local SHA-256 before upload
+                    string localSha = string.Empty;
+                    try
+                    {
+                        localSha = await FileService.ComputeSha256Async(path).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        this.BeginInvoke(new Action(() => MessageBox.Show(this, $"Không thể tính hash file: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error)));
+                        return;
+                    }
+
+                    // Upload file via multipart/form-data to API
+                    try
+                    {
+                        var client = ApiClient.Create();
+                        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                        using var content = new MultipartFormDataContent();
+                        var streamContent = new StreamContent(fs);
+                        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+                        content.Add(streamContent, "file", Path.GetFileName(path));
+
+                        var resp = await client.PostAsync("api/files/upload", content).ConfigureAwait(false);
+                        var respStr = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        if (!resp.IsSuccessStatusCode)
+                        {
+                            this.BeginInvoke(new Action(() => MessageBox.Show(this, $"Upload failed: {respStr}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)));
+                            return;
+                        }
+
+                        // Parse response JSON
+                        var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        var doc = System.Text.Json.JsonDocument.Parse(respStr);
+                        var root = doc.RootElement;
+                        string url = root.GetProperty("url").GetString() ?? string.Empty;
+                        string fileName = root.GetProperty("fileName").GetString() ?? Path.GetFileName(path);
+                        long fileSize = root.GetProperty("fileSize").GetInt64();
+                        string sha = root.TryGetProperty("sha256", out var shaEl) ? shaEl.GetString() ?? localSha : localSha;
+
+                        // Build message payload in file message format expected by UI: file::url::fileName::fileSize::sha256
+                        // previous implementation used '|' separators which the UI did not recognize and printed raw text.
+                        string payload = $"file::{url}::{fileName}::{fileSize}::{sha}";
+
+                        // Add to current messages as outgoing
+                        _currentMsgs.Add((Guid.NewGuid().ToString(), payload, true, DateTime.Now.ToString("h:mm tt"), ""));
+                        this.BeginInvoke(new Action(() => BuildMessages()));
+                    }
+                    catch (Exception ex)
+                    {
+                        this.BeginInvoke(new Action(() => MessageBox.Show(this, $"Upload error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error)));
+                    }
+                }
+                catch { }
+            };
             _tbMessage = new TelegramTextBox { Height = 36 };
             _tbMessage.SetPlaceholder("Write a message...");
             _tbMessage.KeyDown += (s, e) => { if (e.KeyCode == Keys.Return && !e.Shift) { e.SuppressKeyPress = true; SendMessage(); } };
@@ -1680,6 +1747,8 @@ namespace SecureChat.Client
                 string url = parts.Length > 0 ? parts[0] : "";
                 string fileName = parts.Length > 1 ? parts[1] : "";
                 string fileSize = parts.Length > 2 ? parts[2] : "";
+                // optional expected sha256 provided by server: url|fileName|fileSize|sha256
+                string expectedSha256 = parts.Length > 3 ? parts[3] : string.Empty;
 
                 var panel = new Panel { BackColor = Color.Transparent };
                 var fileCtrl = new ucFileBubble
@@ -1732,8 +1801,35 @@ namespace SecureChat.Client
                     {
                         await fileCtrl.StartDownloadAsync(async progress =>
                         {
-                            await DownloadUrlToFileAsync(url, destination, progress, cts.Token).ConfigureAwait(false);
+                            await _fileTransfer.DownloadAsync(url, destination, progress, cts.Token).ConfigureAwait(false);
                         }).ConfigureAwait(false);
+
+                        // After successful download, if server provided expected sha256, verify integrity via FileTransferService
+                        if (!string.IsNullOrWhiteSpace(expectedSha256))
+                        {
+                            try
+                            {
+                                bool ok = await _fileTransfer.VerifyAsync(destination, expectedSha256).ConfigureAwait(false);
+                                if (ok)
+                                {
+                                    this.BeginInvoke(new Action(() => MessageBox.Show(this, "Tải xuống hoàn tất.", "Downloaded", MessageBoxButtons.OK, MessageBoxIcon.Information)));
+                                }
+                                else
+                                {
+                                    this.BeginInvoke(new Action(() => MessageBox.Show(this, "File tải về không khớp hash kiểm tra. File có thể đã bị thay đổi hoặc lỗi truyền tải.", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning)));
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                // Hash computation failed — notify user but keep file
+                                this.BeginInvoke(new Action(() => MessageBox.Show(this, $"Không thể kiểm tra hash: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Warning)));
+                            }
+                        }
+                        else
+                        {
+                            // No expected hash provided — notify download completed
+                            this.BeginInvoke(new Action(() => MessageBox.Show(this, "Tải xuống hoàn tất.", "Downloaded", MessageBoxButtons.OK, MessageBoxIcon.Information)));
+                        }
                     }
                     catch (OperationCanceledException)
                     {
@@ -1910,40 +2006,7 @@ namespace SecureChat.Client
 
         // --- Helper action implementations ---
 
-        private static async Task DownloadUrlToFileAsync(string url, string destinationPath, IProgress<int> progress, CancellationToken token)
-        {
-            if (string.IsNullOrEmpty(url))
-                throw new ArgumentException("Empty URL");
 
-            using var client = new HttpClient();
-            using var resp = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
-            resp.EnsureSuccessStatusCode();
-
-            var contentLength = resp.Content.Headers.ContentLength ?? -1L;
-            using var stream = await resp.Content.ReadAsStreamAsync(token).ConfigureAwait(false);
-            using var fs = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
-
-            var buffer = new byte[81920];
-            long totalRead = 0;
-            int read;
-            while ((read = await stream.ReadAsync(buffer, 0, buffer.Length, token).ConfigureAwait(false)) > 0)
-            {
-                await fs.WriteAsync(buffer, 0, read, token).ConfigureAwait(false);
-                totalRead += read;
-                if (contentLength > 0)
-                {
-                    int percent = (int)(totalRead * 100L / contentLength);
-                    progress?.Report(percent);
-                }
-                else
-                {
-                    var coarse = Math.Min(99, (int)Math.Min(99, totalRead / 100_000)); // every ~100KB yields +1
-                    progress?.Report(coarse);
-                }
-            }
-
-            progress?.Report(100);
-        }
 
         private (DialogResult Result, bool IsChecked) ShowTelegramDialog(string title, string checkboxText, string confirmText, Color confirmColor)
 {
