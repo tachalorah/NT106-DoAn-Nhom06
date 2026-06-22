@@ -28,6 +28,7 @@ namespace SecureChat.Client
         private Panel _pnlSidebar = null!; // Panel trái rộng 280px chứa danh sách hội thoại
         private Panel _pnlChat; // Panel phải chiếm phần còn lại, hiển thị tin nhắn
         private Panel _pnlSettingsMenu;  // Menu trượt từ trái ra, đè lên chat area
+        private Panel _pnlSettingsMenuList; // Panel chứa các menu rows (để refresh theme)
         private bool _settingsVisible = false; // Trạng thái menu đang hiện hay ẩn, mặc định là ẩn
         private System.Windows.Forms.Timer _slideTimer; // Timer tạo hiệu ứng trượt (animation)
         private int _settingsTargetX;  // Tọa độ X đích khi animate menu
@@ -49,6 +50,8 @@ namespace SecureChat.Client
         private readonly VoicePlaybackService _voicePlaybackService = new(); // shared singleton – passed into each ucAudioBubble
 
         private Panel _pnlInputBar; // thanh nhập tin nhắn bên dưới
+        private Panel _pnlSidebarHeader; // header trên cùng của sidebar trái (hamburger + "SecureChat")
+        private Panel _sbHeader; // header của right sidebar (group/user info panel)
         private TelegramTextBox _tbMessage; // TextBox gõ tin nhắn
         private Label _lblChatName, _lblChatStatus; // tên và trạng thái người nhận
         private AvatarControl _chatAvatar; //  avatar tròn người nhận
@@ -111,7 +114,6 @@ namespace SecureChat.Client
         private string _currentDisplayName = string.Empty;
         private string _currentUsername = string.Empty;
         private string _currentEmail = string.Empty;
-        private bool _isLoggingOut;
         private string _currentAvatarUrl = string.Empty;
 
         private readonly List<(string Id, string Name, string Preview, string Time, int Unread, bool IsGroup)> _convs = new();
@@ -121,8 +123,6 @@ namespace SecureChat.Client
         private readonly Dictionary<string, Image> _convAvatarCache = new();
 
         private readonly Dictionary<string, string> _convOtherUserId = new();
-
-        private readonly Dictionary<string, int> _convVersions = new();
 
         private readonly ConcurrentDictionary<string, (bool IsOnline, DateTime? LastSeenUtc)> _userPresence = new();
 
@@ -217,6 +217,13 @@ namespace SecureChat.Client
 
         private async void FrmMainChat_Load(object? sender, EventArgs e)
         {
+            NightModeService.Initialize();
+            _settingsToggles["Night Mode"] = NightModeService.IsEnabled;
+            // Áp dụng UI ngay nếu night mode đã được bật từ session trước
+            // (Initialize chỉ set TG.* static, không trigger OnNightModeChanged)
+            if (NightModeService.IsEnabled)
+                OnNightModeChanged();
+
             try
             {
                 var http = SecureChat.Client.Services.ApiClient.Instance.GetHttpClient();
@@ -501,7 +508,7 @@ namespace SecureChat.Client
             ShowInTaskbar = adv.ShowTaskbarIcon;
             ApplyMonochromeIcon();
 
-            BackColor = Color.White;
+            BackColor = TG.SidebarBg;
             Font = TG.FontRegular(9.5f);
 
             BuildSidebar();
@@ -606,7 +613,7 @@ namespace SecureChat.Client
         {
             int sw = 300;                        // Sidebar Width
             int smw = 260;                       // Settings Menu Width
-            int rsw = _isSidebarOpen ? 340 : 0;  // Right Sidebar Width
+            int rsw = _isSidebarOpen ? 300 : 0;  // Right Sidebar Width
 
             _pnlSidebar.SetBounds(0, 0, sw, ClientSize.Height);
             _pnlChat.SetBounds(sw, 0, ClientSize.Width - sw - rsw, ClientSize.Height);
@@ -614,7 +621,7 @@ namespace SecureChat.Client
             if (_isSidebarOpen)
             {
                 _pnlRightSidebar.SetBounds(
-                    ClientSize.Width - 340, 0, 340, ClientSize.Height);
+                    ClientSize.Width - 300, 0, 300, ClientSize.Height);
                 _pnlRightSidebar.Visible = true;
             }
             else
@@ -633,10 +640,10 @@ namespace SecureChat.Client
         // ════════════════════════════════════════════
         private void BuildSidebar()
         {
-            _pnlSidebar = new Panel { BackColor = Color.White };
+            _pnlSidebar = new Panel { BackColor = TG.SidebarBg };
 
             // ── Header xanh ──────────────────────────
-            var pnlHeader = new Panel { Height = 52, BackColor = TG.TitleBarBg, Dock = DockStyle.Top };
+            _pnlSidebarHeader = new Panel { Height = 52, BackColor = TG.TitleBarBg, Dock = DockStyle.Top };
             // Gắn chặt panel này vào mép trên cùng của sidebar.
 
             _btnHamburger = new Button
@@ -644,7 +651,7 @@ namespace SecureChat.Client
                 Text = "☰",
                 FlatStyle = FlatStyle.Flat, // Đặt kiểu hiển thị phẳng, không có hiệu ứng nổi 3D của Windows cổ điển.
                 Font = TG.FontRegular(14f),
-                ForeColor = Color.White,
+                ForeColor = TG.TitleBarFg,
                 Size = new Size(48, 52),
                 Location = new Point(0, 0), // Đặt nút ở góc trên cùng bên trái của header.
                 BackColor = Color.Transparent, // Nền trong suốt để lộ màu xanh của header.
@@ -672,7 +679,7 @@ namespace SecureChat.Client
                 Text = "✏",
                 FlatStyle = FlatStyle.Flat,
                 Font = TG.FontRegular(13f),
-                ForeColor = Color.White,
+                ForeColor = TG.TitleBarFg,
                 Size = new Size(40, 52),
                 BackColor = Color.Transparent,
                 Cursor = Cursors.Hand,
@@ -680,26 +687,26 @@ namespace SecureChat.Client
             };
             btnEdit.FlatAppearance.BorderSize = 0;
 
-            // pnlHeader.Controls.AddRange(new Control[] { _btnHamburger, lblTitle, btnEdit });
-            pnlHeader.Controls.AddRange(new Control[] { _btnHamburger, lblTitle });
+            // _pnlSidebarHeader.Controls.AddRange(new Control[] { _btnHamburger, lblTitle, btnEdit });
+            _pnlSidebarHeader.Controls.AddRange(new Control[] { _btnHamburger, lblTitle });
 
-            pnlHeader.Resize += (s, e) =>
+            _pnlSidebarHeader.Resize += (s, e) =>
             {
-                lblTitle.Width = pnlHeader.Width - 96;
-                btnEdit.Location = new Point(pnlHeader.Width - 42, 0);
+                lblTitle.Width = _pnlSidebarHeader.Width - 96;
+                btnEdit.Location = new Point(_pnlSidebarHeader.Width - 42, 0);
             };
 
             // ── Search ────────────────────────────────
-            var pnlSearch = new Panel { Height = 44, Dock = DockStyle.Top, BackColor = Color.White, Padding = new Padding(8, 6, 8, 4) };
+            var pnlSearch = new Panel { Height = 44, Dock = DockStyle.Top, BackColor = TG.SidebarBg, Padding = new Padding(8, 6, 8, 4) };
             _tbSearch = new TelegramTextBox { Height = 32, Dock = DockStyle.Fill };
             _tbSearch.SetPlaceholder("🔍  Search");
             _tbSearch.TextChanged += (_, __) => BuildConvList();
             pnlSearch.Controls.Add(_tbSearch);
 
             // ── Conversation list ─────────────────────
-            _pnlConvList = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
+            _pnlConvList = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = TG.SidebarBg };
 
-            _pnlEmptyState = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Visible = false };
+            _pnlEmptyState = new Panel { Dock = DockStyle.Fill, BackColor = TG.SidebarBg, Visible = false };
             _lblEmptyState = new Label
             {
                 Font = TG.FontSemiBold(10f),
@@ -738,7 +745,7 @@ namespace SecureChat.Client
             _pnlSidebar.Controls.Add(_pnlEmptyState);
             _pnlSidebar.Controls.Add(_pnlConvList);
             _pnlSidebar.Controls.Add(pnlSearch);
-            _pnlSidebar.Controls.Add(pnlHeader);
+            _pnlSidebar.Controls.Add(_pnlSidebarHeader);
 
             UpdateEmptyStateUI();
         }
@@ -855,7 +862,7 @@ namespace SecureChat.Client
             // Tạo một khung chứa có chiều cao cố định là 68px, màu nền trắng và đổi con trỏ chuột thành hình bàn tay (Cursors.Hand) khi rê vào.
             // Thuộc tính Tag được gán bằng id của cuộc trò chuyện để dễ dàng nhận diện.
             bool isSavedRow = !string.IsNullOrWhiteSpace(_savedMessagesConvId) && id == _savedMessagesConvId;
-            var pnl = new Panel { Height = 68, BackColor = isSavedRow ? Color.FromArgb(240, 248, 255) : Color.White, Tag = id, Cursor = Cursors.Hand };
+            var pnl = new Panel { Height = 68, BackColor = isSavedRow ? TG.WindowBg : TG.SidebarBg, Tag = id, Cursor = Cursors.Hand };
 
             // Kiểm tra xem dòng chat này có đang được người dùng chọn (active) hay không bằng cách so sánh Tag với biến toàn cục _activeConvId.
             bool isActive() => (string)pnl.Tag == _activeConvId;
@@ -920,7 +927,7 @@ namespace SecureChat.Client
 
             // Khi rê chuột vào/ra khỏi tấm nền, nếu dòng chat này không ở trạng thái được chọn (!isActive()), nền sẽ đổi sang màu hover (TG.SidebarHover) và ngược lại.
             pnl.MouseEnter += (s, e) => { if (!isActive()) pnl.BackColor = TG.SidebarHover; };
-            pnl.MouseLeave += (s, e) => { if (!isActive()) pnl.BackColor = Color.White; };
+            pnl.MouseLeave += (s, e) => { if (!isActive()) pnl.BackColor = TG.SidebarBg; };
 
             // Resize child layout when row width changes
             pnl.Resize += (s, e) =>
@@ -933,13 +940,13 @@ namespace SecureChat.Client
                 if (isActive())
                 {
                     pnl.BackColor = TG.SidebarActive;
-                    lblName.ForeColor = Color.White;
-                    lblPreview.ForeColor = Color.FromArgb(220, 240, 255);
-                    lblTime.ForeColor = Color.FromArgb(200, 230, 255);
+                    lblName.ForeColor = TG.TitleBarFg;
+                    lblPreview.ForeColor = Color.FromArgb(220, TG.TitleBarFg.R, TG.TitleBarFg.G, TG.TitleBarFg.B);
+                    lblTime.ForeColor = Color.FromArgb(200, TG.TitleBarFg.R, TG.TitleBarFg.G, TG.TitleBarFg.B);
                 }
                 else
                 {
-                    pnl.BackColor = Color.White;
+                    pnl.BackColor = TG.SidebarBg;
                     lblName.ForeColor = TG.TextName;
                     lblPreview.ForeColor = TG.TextSecondary;
                     lblTime.ForeColor = TG.TextTime;
@@ -960,7 +967,7 @@ namespace SecureChat.Client
                 if (c == avatar) continue; // avatar wired already
                 c.Click += (s, e) => doClick();
                 c.MouseEnter += (s, e) => { if (!isActive()) pnl.BackColor = TG.SidebarHover; };
-                c.MouseLeave += (s, e) => { if (!isActive()) pnl.BackColor = Color.White; };
+                c.MouseLeave += (s, e) => { if (!isActive()) pnl.BackColor = TG.SidebarBg; };
             }
 
             pnl.Width = _pnlConvList?.ClientSize.Width ?? pnl.Width;
@@ -983,10 +990,10 @@ namespace SecureChat.Client
         private void BuildChatArea()
         {
             // chứa toàn bộ Header, danh sách tin nhắn và thanh nhập liệu.
-            _pnlChat = new Panel { BackColor = Color.White };
+            _pnlChat = new Panel { BackColor = TG.SidebarBg };
 
             // ── Chat Header ───────────────────────────
-            _pnlChatHeader = new Panel { Height = 52, BackColor = Color.White, Dock = DockStyle.Top };
+            _pnlChatHeader = new Panel { Height = 52, BackColor = TG.SidebarBg, Dock = DockStyle.Top };
             // vẽ một đường kẻ ngang màu xám/nhạt (TG.Divider) ở dưới cùng để ngăn cách header với vùng tin nhắn.
             _pnlChatHeader.Paint += (s, e) =>
                 e.Graphics.DrawLine(new Pen(TG.Divider), 0, 51, _pnlChatHeader.Width, 51);
@@ -1117,7 +1124,7 @@ namespace SecureChat.Client
                 Dock = DockStyle.Fill, // chiếm trọn phần diện tích còn lại
                 AutoScroll = true,
                 Padding = new Padding(12, 8, 12, 8),
-                BackColor = Color.FromArgb(0xDB, 0xE8, 0xD5), // Thêm dòng này
+                BackColor = TG.ChatBg,
             };
 
             _pnlChatEmpty = new Panel
@@ -1130,7 +1137,7 @@ namespace SecureChat.Client
             _lblChatEmpty = new Label
             {
                 AutoSize = true,
-                BackColor = Color.FromArgb(220, 255, 255, 255),
+                BackColor = Color.FromArgb(220, TG.WindowBg.R, TG.WindowBg.G, TG.WindowBg.B),
                 ForeColor = TG.TextSecondary,
                 Font = TG.FontSemiBold(9.5f),
                 Padding = new Padding(12, 6, 12, 6)
@@ -1175,7 +1182,7 @@ namespace SecureChat.Client
             {
                 Height = 28,
                 Dock = DockStyle.Top,
-                BackColor = Color.FromArgb(0xE8, 0xEA, 0xED),
+                BackColor = TG.Divider,
                 Visible = false,
                 Cursor = Cursors.Hand,
             };
@@ -1226,7 +1233,7 @@ namespace SecureChat.Client
             _pnlPinnedPopup = new Panel
             {
                 Dock = DockStyle.Top,
-                BackColor = Color.White,
+                BackColor = TG.SidebarBg,
                 Visible = false,
                 Height = 0,
             };
@@ -1249,7 +1256,7 @@ namespace SecureChat.Client
             {
                 Height = 24,
                 Dock = DockStyle.Bottom,
-                BackColor = Color.FromArgb(0xE8, 0xEA, 0xED),
+                BackColor = TG.Divider,
                 Visible = false,
                 Cursor = Cursors.Hand,
             };
@@ -1275,10 +1282,10 @@ namespace SecureChat.Client
             _pnlChat.Controls.Add(_pnlChatHeader);
 
             // ── Right Sidebar (profile / group info) ────────
-            _pnlRightSidebar = new Panel { Width = 340, BackColor = Color.White, Visible = false };
+            _pnlRightSidebar = new Panel { Width = 300, BackColor = TG.SidebarBg, Visible = false };
 
-            var sbHeader = new Panel { Height = 52, Dock = DockStyle.Top, BackColor = Color.White };
-            sbHeader.Paint += (_, e) => e.Graphics.DrawLine(new Pen(TG.Divider), 0, 51, sbHeader.Width, 51);
+            _sbHeader = new Panel { Height = 52, Dock = DockStyle.Top, BackColor = TG.SidebarBg };
+            _sbHeader.Paint += (_, e) => e.Graphics.DrawLine(new Pen(TG.Divider), 0, 51, _sbHeader.Width, 51);
 
             var sbClose = new Button
             {
@@ -1290,14 +1297,14 @@ namespace SecureChat.Client
                 ForeColor = TG.TextSecondary,
                 Cursor = Cursors.Hand,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Location = new Point(292, 8)
+                Location = new Point(252, 8)
             };
             sbClose.FlatAppearance.BorderSize = 0;
             sbClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(15, 0, 0, 0);
             sbClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(30, 0, 0, 0);
             sbClose.Click += (_, _) => { _isSidebarOpen = false; _btnToggleSidebar.Text = "⏪"; AdjustLayout(); };
 
-            sbHeader.Controls.Add(new Label
+            _sbHeader.Controls.Add(new Label
             {
                 Text = "Info",
                 Font = TG.FontSemiBold(10f),
@@ -1308,12 +1315,12 @@ namespace SecureChat.Client
                 Location = new Point(12, 14),
                 BackColor = Color.Transparent
             });
-            sbHeader.Controls.Add(sbClose);
+            _sbHeader.Controls.Add(sbClose);
 
-            _sbBody = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Color.White };
+            _sbBody = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = TG.SidebarBg };
 
             _pnlRightSidebar.Controls.Add(_sbBody);
-            _pnlRightSidebar.Controls.Add(sbHeader);
+            _pnlRightSidebar.Controls.Add(_sbHeader);
 
             // _pnlMessages.Resize += (s, e) => _pnlMessages.Invalidate(); // bỏ vì đã có PaintChatBackground tự xử lý.
             _pnlMessages.Resize += (s, e) => UpdateCachedBackground();
@@ -1328,7 +1335,7 @@ namespace SecureChat.Client
                 _chatMoreMenu = new ContextMenuStrip
                 {
                     ShowImageMargin = false,
-                    BackColor = Color.White,
+                    BackColor = TG.SidebarBg,
                     ForeColor = TG.TextPrimary,
                     Font = new Font("Segoe UI", 10f),
                     Renderer = new ToolStripProfessionalRenderer(new ChatMenuColorTable())
@@ -1535,58 +1542,64 @@ namespace SecureChat.Client
             var http = SecureChat.Client.Services.ApiClient.Instance.GetHttpClient();
             var members = new List<SecureChat.Client.Forms.Chat.MemberModel>();
             Image? avatarImage = null;
-            string? convDescription = null;
             try
             {
-                var (ok, view, _) = await SecureChat.Client.Services.ApiClient.Instance
-                    .GetAsync<SecureChat.DTOs.ConversationViewResponse>($"api/conversations/{_activeConvId}/view");
-                if (!ok || view?.Metadata == null) return;
-
-                var meta = view.Metadata;
-                convDescription = meta.Description;
-
-                if (!string.IsNullOrWhiteSpace(meta.AvatarURL))
+                var opts = new System.Text.Json.JsonSerializerOptions
                 {
-                    try
+                    PropertyNameCaseInsensitive = true,
+                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+                };
+
+                // Lấy thông tin conversation (bao gồm AvatarURL)
+                var convRes = await http.GetAsync($"api/conversations/{_activeConvId}");
+                if (convRes.IsSuccessStatusCode)
+                {
+                    var convJson = await convRes.Content.ReadAsStringAsync();
+                    var conv = System.Text.Json.JsonSerializer.Deserialize<SecureChat.DTOs.ConversationResponse>(convJson, opts);
+                    if (conv != null && !string.IsNullOrWhiteSpace(conv.AvatarURL))
                     {
-                        var imgRes = await http.GetAsync(meta.AvatarURL);
-                        if (imgRes.IsSuccessStatusCode)
+                        try
                         {
-                            using var imgStream = await imgRes.Content.ReadAsStreamAsync();
-                            avatarImage = new Bitmap(imgStream);
+                            var imgRes = await http.GetAsync(conv.AvatarURL);
+                            if (imgRes.IsSuccessStatusCode)
+                            {
+                                using var imgStream = await imgRes.Content.ReadAsStreamAsync();
+                                avatarImage = new Bitmap(imgStream);
+                            }
                         }
+                        catch { }
                     }
-                    catch { }
                 }
 
-                members = view.Members.Select(m => new SecureChat.Client.Forms.Chat.MemberModel(
-                    m.User?.DisplayName ?? m.Nickname ?? "Unknown",
-                    m.User != null && m.User.ShowOnlineStatus
-                        ? SecureChat.Client.Helpers.PresenceFormatter.GetPresenceText(m.IsOnline, m.User.LastSeenUtc)
-                        : "offline",
-                    m.Role switch
-                    {
-                        SecureChat.Models.MemberRole.Owner => "Admin",
-                        SecureChat.Models.MemberRole.Moderator => "Moderator",
-                        _ => "Member"
-                    },
-                    null,
-                    TG.GetAvatarColor(m.User?.DisplayName ?? "?"),
-                    m.MemberID
-                )).ToList();
+                var res = await http.GetAsync($"api/conversations/{_activeConvId}/members");
+                if (res.IsSuccessStatusCode)
+                {
+                    var json = await res.Content.ReadAsStringAsync();
+                    var list = System.Text.Json.JsonSerializer.Deserialize<List<SecureChat.DTOs.MemberResponse>>(json, opts);
+                    if (list != null)
+                        members = list.Select(m => new SecureChat.Client.Forms.Chat.MemberModel(
+    m.User?.DisplayName ?? m.Nickname ?? "Unknown",
+    m.User != null && m.User.ShowOnlineStatus
+        ? SecureChat.Client.Helpers.PresenceFormatter.GetPresenceText(m.IsOnline, m.User.LastSeenUtc)
+        : "offline",
+    m.Role switch
+    {
+        SecureChat.Models.MemberRole.Owner => "Admin",
+        SecureChat.Models.MemberRole.Moderator => "Moderator",
+        _ => "Member"
+    },
+    null,
+    TG.GetAvatarColor(m.User?.DisplayName ?? "?"),
+    m.MemberID
+)).ToList();
+                }
             }
             catch { }
 
             using var dlg = new SecureChat.Client.Forms.Chat.frmGroupInfo();
-            dlg.LoadGroup(_lblChatName.Text, convDescription, avatarImage, members);
+            dlg.LoadGroup(_lblChatName.Text, avatarImage, members);
             dlg.SetContext(_activeConvId, _currentDisplayName);
             dlg.StartPosition = FormStartPosition.CenterParent;
-            dlg.AddMemberRequested += () =>
-            {
-                using var settingsDlg = new SecureChat.Client.Forms.Chat.frmMembersSettings(_activeConvId);
-                settingsDlg.StartPosition = FormStartPosition.CenterParent;
-                settingsDlg.ShowDialog(dlg);
-            };
             dlg.ShowDialog(this);
             avatarImage?.Dispose();
         }
@@ -1625,10 +1638,7 @@ namespace SecureChat.Client
             var updatePayload = new
             {
                 Name = dlg.GroupName,
-                AvatarUrl = avatarUrl,
-                Description = dlg.DescriptionText,
-                GroupType = dlg.GroupType == "Public" ? (int)SecureChat.Models.GroupVisibility.Public : (int)SecureChat.Models.GroupVisibility.Private,
-                ChatHistoryMode = dlg.ChatHistoryMode == "Visible" ? (int)SecureChat.Models.HistoryMode.Visible : (int)SecureChat.Models.HistoryMode.Hidden
+                AvatarUrl = avatarUrl
             };
             var updateJson = System.Text.Json.JsonSerializer.Serialize(updatePayload);
             var updateRes = await http.PatchAsync(
@@ -1727,24 +1737,8 @@ namespace SecureChat.Client
 
                     if (memberNames.Count == 0)
                     {
-                        var result = MessageBox.Show(this,
-                            "You are the only member in this group. Leaving will permanently delete the group for everyone.\n\nContinue?",
-                            "Leave group",
-                            MessageBoxButtons.YesNo,
-                            MessageBoxIcon.Warning);
-
-                        if (result != DialogResult.Yes)
-                            return;
-
-                        // No admin needed — call delete (server will auto-delete when last member leaves)
-                        if (!await TryRemoveConversationOnServerAsync(targetConvId, null))
-                        {
-                            MessageBox.Show(this, "Unable to leave the group right now.", "Leave group",
-                                MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return;
-                        }
-
-                        RemoveConversationLocal(targetConvId);
+                        MessageBox.Show(this, "Cannot leave group: no other members available to appoint as the new admin.\n\nAdd more members first, then try again.", "No Members",
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
                         return;
                     }
 
@@ -2458,13 +2452,13 @@ namespace SecureChat.Client
 
         private void BuildInputBar()
         {
-            _pnlInputBar = new Panel { Height = 56, Dock = DockStyle.Bottom, BackColor = Color.White };
+            _pnlInputBar = new Panel { Height = 56, Dock = DockStyle.Bottom, BackColor = TG.SidebarBg };
             _pnlInputBar.Paint += (s, e) => e.Graphics.DrawLine(new Pen(TG.Divider), 0, 0, _pnlInputBar.Width, 0);
 
             // =========================================================
             // 1. TẠO PANEL REPLY (Bao gồm Icon, Đường viền, Tên, Text)
             // =========================================================
-            _pnlReplyContext = new Panel { Dock = DockStyle.Top, Height = 44, Visible = false, BackColor = Color.White };
+            _pnlReplyContext = new Panel { Dock = DockStyle.Top, Height = 44, Visible = false, BackColor = TG.SidebarBg };
 
             // Icon mũi tên quay lại
             var lblReplyIcon = new Label
@@ -3136,7 +3130,7 @@ namespace SecureChat.Client
             int smw = 260;
             _pnlSettingsMenu = new Panel
             {
-                BackColor = Color.White,
+                BackColor = TG.SidebarBg,
                 Visible = true,   // luôn visible, chỉ di chuyển X
                 Width = smw,
                 Left = -smw,      // bắt đầu ẩn ngoài màn hình bên trái
@@ -3180,7 +3174,7 @@ namespace SecureChat.Client
                 Text = "✕",
                 FlatStyle = FlatStyle.Flat,
                 Font = TG.FontRegular(12f),
-                ForeColor = Color.White,
+                ForeColor = TG.TitleBarFg,
                 Size = new Size(36, 36),
                 Location = new Point(8, 8),
                 BackColor = Color.Transparent,
@@ -3196,7 +3190,7 @@ namespace SecureChat.Client
             {
                 Text = _currentDisplayName,
                 Font = TG.FontSemiBold(11f),
-                ForeColor = Color.White,
+                ForeColor = TG.TitleBarFg,
                 AutoSize = false,
                 Height = 28,           // tăng từ 22 → 28 để chứa dấu tiếng Việt (ễ, ắ...)
                 Width = smw - 80 - 14, // smw - leftPos(80) - rightMargin(14)
@@ -3224,7 +3218,8 @@ namespace SecureChat.Client
     ("🌙", "Night Mode",      true),
 };
 
-            var pnlMenuList = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
+            var pnlMenuList = new Panel { Dock = DockStyle.Fill, BackColor = TG.SidebarBg };
+            _pnlSettingsMenuList = pnlMenuList;
             pnlMenuList.Resize += (s, e) =>
             {
                 foreach (Control c in pnlMenuList.Controls)
@@ -3267,7 +3262,7 @@ namespace SecureChat.Client
 
         private Panel BuildSettingsRow(string emoji, string label, bool hasToggle, bool initialOn, Action<bool>? onToggle = null)
         {
-            var pnl = new Panel { Height = 48, BackColor = Color.White, Cursor = Cursors.Hand };
+            var pnl = new Panel { Height = 48, BackColor = TG.SidebarBg, Cursor = Cursors.Hand };
 
             var lblEmoji = new Label
             {
@@ -3314,8 +3309,8 @@ namespace SecureChat.Client
                     using var brush = new SolidBrush(on ? TG.Blue : Color.FromArgb(0xCC, 0xCC, 0xCC));
                     e.Graphics.FillPath(brush, RoundedPanel.GetRoundedPath(r, 10));
                     int cx = on ? 22 : 2;
-                    using var white = new SolidBrush(Color.White);
-                    e.Graphics.FillEllipse(white, cx, 4, 16, 16);
+                    using var thumbBrush = new SolidBrush(TG.TitleBarFg);
+                    e.Graphics.FillEllipse(thumbBrush, cx, 4, 16, 16);
                 };
                 toggle.Click += (s, e) =>
                 {
@@ -3412,62 +3407,14 @@ namespace SecureChat.Client
                                 catch { }
                             }
 
-                            // E2EE: Generate AES-256 key upfront for the group
-                            byte[] groupAesKey = new byte[SecureChat.Shared.Security.AesEncryption.KeySize];
-                            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
-                                rng.GetBytes(groupAesKey);
-
-                            // Build Members payload: list of { UserID, EncryptedKey }
-                            var allUserIds = new List<string>(dlg.ResultMemberIds);
-                            if (!string.IsNullOrWhiteSpace(_currentUserId) && !allUserIds.Contains(_currentUserId))
-                                allUserIds.Insert(0, _currentUserId);
-
+                            // Build Members payload expected by server: list of { UserID, EncryptedKey }
                             var members = new List<object>();
-                            foreach (var uid in allUserIds)
-                            {
-                                string publicKey;
-                                if (uid == _currentUserId)
-                                {
-                                    var (pubKey, _) = SecureChat.Shared.Security.KeyManager.GetKeyPair();
-                                    publicKey = pubKey ?? string.Empty;
-                                }
-                                else
-                                {
-                                    publicKey = string.Empty;
-                                    try
-                                    {
-                                        var userRes = await http.GetAsync($"api/users/{uid}");
-                                        if (userRes.IsSuccessStatusCode)
-                                        {
-                                            var userJson = await userRes.Content.ReadAsStringAsync();
-                                            var userData = System.Text.Json.JsonSerializer.Deserialize<SecureChat.DTOs.UserResponse>(userJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                                            if (userData is not null)
-                                                publicKey = userData.PublicKey;
-                                        }
-                                    }
-                                    catch { }
-                                }
+                            foreach (var id in dlg.ResultMemberIds)
+                                members.Add(new { UserID = id, EncryptedKey = "TBD" });
 
-                                string encryptedKeyB64;
-                                if (!string.IsNullOrWhiteSpace(publicKey))
-                                {
-                                    try
-                                    {
-                                        byte[] enc = SecureChat.Shared.Security.RSAEncryption.Encrypt(groupAesKey, publicKey);
-                                        encryptedKeyB64 = Convert.ToBase64String(enc);
-                                    }
-                                    catch
-                                    {
-                                        encryptedKeyB64 = "TBD";
-                                    }
-                                }
-                                else
-                                {
-                                    encryptedKeyB64 = "TBD";
-                                }
-
-                                members.Add(new { UserID = uid, EncryptedKey = encryptedKeyB64 });
-                            }
+                            // Ensure current user is included as a member
+                            if (!string.IsNullOrWhiteSpace(_currentUserId) && !dlg.ResultMemberIds.Contains(_currentUserId))
+                                members.Insert(0, new { UserID = _currentUserId, EncryptedKey = "TBD" });
 
                             var payload = new
                             {
@@ -3523,10 +3470,6 @@ namespace SecureChat.Client
                                 }
                                 catch { }
                             }
-
-                            // Warm the key cache so the first message can be decrypted immediately
-                            if (!string.IsNullOrWhiteSpace(newConvId))
-                                _ = _decryptor.EnsureConversationKeyAsync(newConvId);
 
                             // success — refresh conversations
                             await SyncConversationsAsync();
@@ -3607,23 +3550,7 @@ namespace SecureChat.Client
                             }
                             else if (dr == DialogResult.No)
                             {
-                                // 1. Call logout API to set Offline immediately
-                                try
-                                {
-                                    var http = ApiClient.Instance.GetHttpClient();
-                                    await http.PostAsync("api/auth/logout", null);
-                                }
-                                catch { }
-
-                                // 2. Stop SignalR so OnDisconnectedAsync does NOT double-broadcast
-                                _isLoggingOut = true;
-                                if (_signalRClient != null)
-                                {
-                                    try { await _signalRClient.StopAsync(); }
-                                    catch { }
-                                }
-
-                                // 3. Xóa Access Token để không gọi API được nữa
+                                // 1. Xóa Access Token để không gọi API được nữa
                                 ApiClient.Instance.SetAccessToken(null);
                                 SecureChat.Shared.Security.KeyManager.Clear();
                                 lock (_processedMessageIdsLock)
@@ -3631,7 +3558,7 @@ namespace SecureChat.Client
                                     _processedMessageIds.Clear();
                                 }
 
-                                // 4. Tìm login form cũ đang ẩn và hiện lại
+                                // 2. Tìm login form cũ đang ẩn và hiện lại
                                 var oldLogin = Application.OpenForms.OfType<frmLoginRegister>().FirstOrDefault();
                                 if (oldLogin != null)
                                 {
@@ -3643,7 +3570,7 @@ namespace SecureChat.Client
                                     loginForm.Show();
                                 }
 
-                                // 5. Ẩn Form Main thay vì đóng để không kích hoạt FormClosed cascade
+                                // 3. Ẩn Form Main thay vì đóng để không kích hoạt FormClosed cascade
                                 this.Hide();
                             }
                         }
@@ -3653,7 +3580,195 @@ namespace SecureChat.Client
                         }
                         break;
                     }
+                case "Night Mode":
+                    {
+                        NightModeService.Toggle();
+                        break;
+                    }
             }
+        }
+
+        public void OnNightModeChanged()
+        {
+            // ── Sidebar ────────────────────────────────────────────────
+            _pnlConvList.BackColor = TG.SidebarBg;
+            _settingsToggles["Night Mode"] = NightModeService.IsEnabled;
+
+            // Header bar (hamburger + title area)
+            if (_pnlSidebarHeader != null)
+            {
+                _pnlSidebarHeader.BackColor = TG.TitleBarBg;
+                foreach (Control c in _pnlSidebarHeader.Controls)
+                {
+                    if (c is Label lbl) { lbl.ForeColor = TG.TitleBarFg; lbl.BackColor = Color.Transparent; }
+                    else if (c is Button btn) btn.ForeColor = TG.TitleBarFg;
+                }
+            }
+
+            // Settings menu header
+            if (_pnlSettingsHeader != null)
+            {
+                _pnlSettingsHeader.BackColor = TG.TitleBarBg;
+                foreach (Control c in _pnlSettingsHeader.Controls)
+                {
+                    if (c is Label lbl) lbl.ForeColor = TG.TitleBarFg;
+                    else if (c is Button btn) btn.ForeColor = TG.TitleBarFg;
+                }
+            }
+            if (_lblSettingsUserName != null) _lblSettingsUserName.ForeColor = TG.TitleBarFg;
+
+            // Settings menu body
+            if (_pnlSettingsMenu != null) _pnlSettingsMenu.BackColor = TG.SidebarBg;
+
+            // Refresh toàn bộ settings menu rows (pnlMenuList + từng row + label)
+            if (_pnlSettingsMenuList != null)
+            {
+                _pnlSettingsMenuList.BackColor = TG.SidebarBg;
+                foreach (Control row in _pnlSettingsMenuList.Controls)
+                {
+                    row.BackColor = TG.SidebarBg;
+                    foreach (Control c in row.Controls)
+                    {
+                        if (c is Label lbl && lbl.BackColor != Color.Transparent)
+                            lbl.ForeColor = TG.TextPrimary;
+                        else if (c is Label lbl2)
+                            lbl2.ForeColor = TG.TextPrimary;
+                    }
+                    row.Invalidate();
+                }
+            }
+
+            // Context menu (chat header ⋮)
+            if (_chatMoreMenu != null)
+            {
+                _chatMoreMenu.BackColor = TG.SidebarBg;
+                _chatMoreMenu.ForeColor = TG.TextPrimary;
+                foreach (ToolStripItem item in _chatMoreMenu.Items)
+                {
+                    item.BackColor = TG.SidebarBg;
+                    item.ForeColor = TG.TextPrimary;
+                }
+            }
+                _lblChatEmpty.BackColor = Color.FromArgb(220, TG.WindowBg.R, TG.WindowBg.G, TG.WindowBg.B);
+
+            // Chat header (title bar top)
+            if (_pnlChatHeader != null)
+            {
+                _pnlChatHeader.BackColor = TG.TitleBarBg;
+                foreach (Control c in _pnlChatHeader.Controls)
+                {
+                    if (c is Label l) l.ForeColor = TG.TitleBarFg;
+                    else if (c is Button b) b.ForeColor = TG.TitleBarFg;
+                }
+            }
+
+            // Input bar
+            if (_pnlInputBar != null) _pnlInputBar.BackColor = TG.WindowBg;
+            if (_tbMessage != null)
+            {
+                _tbMessage.BackColor = TG.InputBg;
+                _tbMessage.ForeColor = TG.TextPrimary;
+            }
+
+            // Right sidebar
+            if (_pnlRightSidebar != null) _pnlRightSidebar.BackColor = TG.WindowBg;
+            if (_sbHeader != null)
+            {
+                _sbHeader.BackColor = TG.TitleBarBg;
+                foreach (Control c in _sbHeader.Controls)
+                {
+                    if (c is Label l) l.ForeColor = TG.TitleBarFg;
+                    else if (c is Button b) b.ForeColor = TG.TitleBarFg;
+                }
+            }
+
+            foreach (var pnl in _convRowCache.Values)
+            {
+                string id = pnl.Tag as string ?? "";
+                bool isSavedRow = !string.IsNullOrWhiteSpace(_savedMessagesConvId) && id == _savedMessagesConvId;
+                bool isSavedMessages = isSavedRow;
+                pnl.BackColor = isSavedMessages ? TG.WindowBg : TG.SidebarBg;
+                foreach (Control c in pnl.Controls)
+                {
+                    if (c is Label lbl)
+                    {
+                        string n = lbl.Name;
+                        if (n == "lblPreview")
+                            lbl.ForeColor = TG.TextSecondary;
+                        else if (n == "lblTime")
+                            lbl.ForeColor = TG.TextTime;
+                        else
+                            lbl.ForeColor = TG.TextName;
+                    }
+                }
+            }
+
+            _pnlMessages.BackColor = TG.ChatBg;
+            _pnlMessages.CachedWallpaper = null;
+            if (_pnlChat != null) _pnlChat.BackColor = TG.ChatBg;
+
+            foreach (Control c in _pnlMessages.Controls)
+            {
+                if (c is ucAudioBubble audio)
+                    audio.OnNightModeChanged();
+                else if (c is ucFileBubble file)
+                    file.OnNightModeChanged();
+            }
+
+            if (_sbBody != null)
+            {
+                _sbBody.BackColor = TG.WindowBg;
+                foreach (Control c in _sbBody.Controls)
+                {
+                    if (c is ucGroupMemberItem member)
+                        member.OnNightModeChanged();
+                    else if (c is Label lbl)
+                    {
+                        // Các label trong BuildDirectSidebar/BuildGroupSidebar
+                        if (lbl.ForeColor != Color.FromArgb(0x21, 0xA1, 0x66)) // giữ màu "Online" xanh
+                            lbl.ForeColor = TG.TextPrimary;
+                        lbl.BackColor = Color.Transparent;
+                    }
+                    else if (c is Panel p)
+                    {
+                        p.BackColor = TG.WindowBg;
+                        foreach (Control pc in p.Controls)
+                            if (pc is Label pl) pl.ForeColor = TG.TextPrimary;
+                        p.Invalidate();
+                    }
+                }
+                _sbBody.Invalidate(true);
+            }
+
+            // Pinned message bar (bị bỏ sót - không nằm trong OnNightModeChanged ban đầu)
+            if (_pnlPinnedBar != null)
+            {
+                _pnlPinnedBar.BackColor = TG.Divider;
+                _lblPinnedText.ForeColor = TG.TextPrimary;
+                foreach (Control c in _pnlPinnedBar.Controls)
+                    if (c is Label lbl && lbl != _lblPinnedText)
+                        lbl.ForeColor = TG.TextSecondary; // downArrow
+                _pnlPinnedBar.Invalidate(true);
+            }
+            if (_pnlPinnedPopup != null)
+            {
+                _pnlPinnedPopup.BackColor = TG.SidebarBg;
+                if (_pnlPinnedPopup.Visible) RebuildPinnedPopup(); // rebuild để item con lấy màu mới
+            }
+            if (_pnlPinnedBottomBar != null)
+            {
+                _pnlPinnedBottomBar.BackColor = TG.Divider;
+                _lblPinnedBottomText.ForeColor = TG.TextPrimary;
+                _pnlPinnedBottomBar.Invalidate(true);
+            }
+
+            _pnlMessages.Invalidate();
+
+            // Rebuild toàn bộ bubble để MsgInBg/MsgOutBg/ChatBg được áp dụng đúng.
+            // Chỉ Invalidate() không đủ vì màu nền bubble được set tại lúc tạo Panel,
+            // không phải qua Paint event → phải BuildMessages() lại để tạo lại Panel mới.
+            if (_allMsgs.TryGetValue(_activeConvId ?? "", out _))
+                BuildMessages();
         }
 
         private void UpdateSettingsHeaderUI()
@@ -3841,55 +3956,6 @@ namespace SecureChat.Client
                 }
                 catch { }
             });
-
-            // Refresh tick Sent/Delivered/Read cho các tin MÌNH đã gửi trong conv này.
-            // Cần làm RIÊNG biệt khỏi SyncMessagesForActiveConversationAsync vì hàm đó
-            // bị chặn bởi _syncedConversations (chỉ chạy 1 lần/session) — nếu không có
-            // bước này, tick sẽ "đứng" ở trạng thái cũ cho tới khi người gửi (mình) đang
-            // online đúng lúc đối phương đọc tin (nhận được SignalR push realtime).
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var http = SecureChat.Client.Services.ApiClient.Instance.GetHttpClient();
-                    var res = await http.GetAsync($"api/conversations/{convId}/messages/delivery-status");
-                    if (!res.IsSuccessStatusCode) return;
-
-                    var json = await res.Content.ReadAsStringAsync();
-                    var opts = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    var entries = System.Text.Json.JsonSerializer.Deserialize<List<DeliveryStatusEntry>>(json, opts);
-                    if (entries is null || entries.Count == 0) return;
-
-                    bool anyChanged = false;
-                    foreach (var entry in entries)
-                    {
-                        var newStatus = entry.Delivery switch
-                        {
-                            "Read"      => SecureChat.DTOs.DeliveryStatus.Read,
-                            "Delivered" => SecureChat.DTOs.DeliveryStatus.Delivered,
-                            _           => SecureChat.DTOs.DeliveryStatus.Sent,
-                        };
-
-                        _msgDelivery.AddOrUpdate(entry.MessageID,
-                            addValueFactory:    _ => { anyChanged = true; return newStatus; },
-                            updateValueFactory: (_, cur) =>
-                            {
-                                if (cur != newStatus) { anyChanged = true; return newStatus; }
-                                return cur;
-                            });
-                    }
-
-                    if (anyChanged && convId == _activeConvId)
-                        BeginInvoke(new Action(() => BuildMessages()));
-                }
-                catch { }
-            });
-        }
-
-        private sealed class DeliveryStatusEntry
-        {
-            public string MessageID { get; set; } = "";
-            public string Delivery { get; set; } = "";
         }
 
         // ════════════════════════════════════════════
@@ -3914,13 +3980,24 @@ namespace SecureChat.Client
 
             try
             {
-                var (ok, view, _) = await ApiClient.Instance
-                    .GetAsync<ConversationViewResponse>($"api/conversations/{_activeConvId}/view");
-                if (!ok || view?.Members == null || view.Members.Count == 0)
+                var http = ApiClient.Instance.GetHttpClient();
+                var response = await http.GetAsync($"api/conversations/{_activeConvId}/members");
+
+                if (!response.IsSuccessStatusCode)
+                    return;
+
+                var json = await response.Content.ReadAsStringAsync();
+                var options = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+                };
+                var members = System.Text.Json.JsonSerializer.Deserialize<List<MemberResponse>>(json, options);
+
+                if (members == null || members.Count == 0)
                     return;
 
                 var isGroup = conv.IsGroup;
-                var members = view.Members;
 
                 // Populate _senderAvatarMap for all members
                 foreach (var m in members)
@@ -3963,7 +4040,7 @@ namespace SecureChat.Client
             var avatar = new AvatarControl
             {
                 Size = new Size(100, 100),
-                Location = new Point((body.ClientSize.Width - 100) / 2, y)
+                Location = new Point(100, y)
             };
             avatar.SetName(other.DisplayName ?? other.Username);
             body.Controls.Add(avatar);
@@ -4017,7 +4094,7 @@ namespace SecureChat.Client
             var avatar = new AvatarControl
             {
                 Size = new Size(100, 100),
-                Location = new Point((body.ClientSize.Width - 100) / 2, y)
+                Location = new Point(100, y)
             };
             avatar.SetName(conv.Name);
             body.Controls.Add(avatar);
@@ -4044,16 +4121,10 @@ namespace SecureChat.Client
                 Font = TG.FontSemiBold(9f),
                 ForeColor = TG.TextSecondary,
                 TextAlign = ContentAlignment.MiddleLeft,
-                AutoSize = false,
-                Size = new Size(260, 20), // 14px trước đó quá thấp cho font 9pt, cắt mất đáy chữ "E"
+                Size = new Size(260, 14),
                 Location = new Point(20, y)
             });
-            y += 26;
-
-            // Lấy role của mình để quyết định có hiện menu admin không
-            var myMember = members.FirstOrDefault(m => m.User?.UserID == _currentUserId);
-            var myRole   = myMember?.Role ?? SecureChat.Models.MemberRole.Member;
-            bool canManage = myRole >= SecureChat.Models.MemberRole.Moderator;
+            y += 22;
 
             // Member list
             foreach (var m in members)
@@ -4070,235 +4141,42 @@ namespace SecureChat.Client
                     _ => "Member"
                 };
 
-                // Wrapper panel để chứa item + nút ⋮
-                var rowPanel = new Panel
-                {
-                    Width  = body.ClientSize.Width > 0 ? body.ClientSize.Width : 340,
-                    Height = 100,
-                    Location = new Point(0, y),
-                    BackColor = Color.Transparent
-                };
-
                 var item = new ucGroupMemberItem
                 {
                     Dock = DockStyle.None,
-                    Width = rowPanel.Width - (canManage ? 32 : 0),
-                    Height = 100,
-                    Location = Point.Empty,
+                    Width = 300,
+                    Margin = Padding.Empty,
+                    Location = new Point(0, y),
                     BackColor = Color.Transparent
                 };
                 item.DisplayName = displayName;
-                item.Status      = status;
-                item.Role        = role;
+                item.Status = status;
+                item.Role = role;
                 item.SetInitial(displayName.Length > 0
                     ? displayName[0].ToString().ToUpperInvariant()
                     : "?");
-                rowPanel.Controls.Add(item);
-
-                // Nút ⋮ — chỉ hiện nếu mình có quyền quản lý VÀ target không phải chính mình
-                // VÀ role target thấp hơn role mình (Moderator không kick Moderator khác)
-                bool isSelf        = m.User?.UserID == _currentUserId;
-                bool targetLower   = m.Role < myRole;
-                bool showMenu      = canManage && !isSelf && targetLower;
-
-                if (showMenu)
-                {
-                    var memberId  = m.MemberID; // capture cho closure
-                    var memberName = displayName;
-
-                    var btnMore = new Button
-                    {
-                        Text      = "⋮",
-                        FlatStyle = FlatStyle.Flat,
-                        Size      = new Size(28, 28),
-                        Location  = new Point(rowPanel.Width - 30, (rowPanel.Height - 28) / 2),
-                        Cursor    = Cursors.Hand,
-                        Font      = TG.FontSemiBold(13f),
-                        ForeColor = TG.TextSecondary,
-                        BackColor = Color.Transparent,
-                    };
-                    btnMore.FlatAppearance.BorderSize      = 0;
-                    btnMore.FlatAppearance.MouseOverBackColor  = Color.FromArgb(20, 0, 0, 0);
-                    btnMore.FlatAppearance.MouseDownBackColor  = Color.FromArgb(40, 0, 0, 0);
-
-                    btnMore.Click += (s, e) =>
-                    {
-                        var menu = new ContextMenuStrip();
-                        menu.Font = TG.FontRegular(9.5f);
-
-                        // ── Mute submenu ──
-                        var itemMute = new ToolStripMenuItem("  🔇  Mute");
-                        itemMute.ForeColor = TG.TextName;
-
-                        var muteOptions = new[]
-                        {
-                            ("5 phút",    5),
-                            ("30 phút",   30),
-                            ("1 giờ",     60),
-                            ("1 ngày",    60 * 24),
-                            ("Vĩnh viễn", 60 * 24 * 365 * 10),
-                        };
-
-                        foreach (var (label, minutes) in muteOptions)
-                        {
-                            var min = minutes;
-                            var sub = new ToolStripMenuItem($"  {label}");
-                            sub.Click += async (_, __) => await MuteMemberAsync(memberId, memberName, min);
-                            itemMute.DropDownItems.Add(sub);
-                        }
-
-                        // ── Unmute ──
-                        var itemUnmute = new ToolStripMenuItem("  🔔  Bỏ mute");
-                        itemUnmute.ForeColor = TG.TextName;
-                        itemUnmute.Click += async (_, __) => await UnmuteMemberAsync(memberId, memberName);
-
-                        // ── Kick ──
-                        var itemKick = new ToolStripMenuItem("  👢  Kick khỏi nhóm");
-                        itemKick.ForeColor = Color.FromArgb(0xE2, 0x4B, 0x4A);
-                        itemKick.Click += async (_, __) => await KickMemberAsync(memberId, memberName);
-
-                        menu.Items.Add(itemMute);
-                        menu.Items.Add(itemUnmute);
-                        menu.Items.Add(new ToolStripSeparator());
-                        menu.Items.Add(itemKick);
-                        menu.Show(btnMore, new Point(0, btnMore.Height));
-                    };
-
-                    rowPanel.Controls.Add(btnMore);
-
-                    // Cập nhật Left khi panel resize
-                    rowPanel.Resize += (s, e) =>
-                    {
-                        item.Width    = rowPanel.Width - 32;
-                        btnMore.Left  = rowPanel.Width - 30;
-                    };
-                }
-
-                body.Controls.Add(rowPanel);
-                y += rowPanel.Height;
+                body.Controls.Add(item);
+                y += item.Height;
             }
 
             body.AutoScrollMinSize = new Size(0, y + 20);
         }
 
-        private async Task MuteMemberAsync(string memberId, string memberName, int minutes)
-        {
-            try
-            {
-                var bannedUntil = DateTime.UtcNow.AddMinutes(minutes);
-                var http = ApiClient.Instance.GetHttpClient();
-                var payload = System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    Role              = (object?)null,
-                    Nickname          = (string?)null,
-                    ShowNotifications = (bool?)null,
-                    BannedUntil       = bannedUntil,
-                    EncryptedKey      = (string?)null
-                });
-                var res = await http.PatchAsync(
-                    $"api/conversations/{_activeConvId}/members/{memberId}",
-                    new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
-
-                if (res.IsSuccessStatusCode)
-                {
-                    string duration = minutes >= 60 * 24 * 365
-                        ? "vĩnh viễn"
-                        : minutes >= 60 * 24 ? $"{minutes / (60 * 24)} ngày"
-                        : minutes >= 60      ? $"{minutes / 60} giờ"
-                        : $"{minutes} phút";
-                    MessageBox.Show($"Đã mute {memberName} trong {duration}.", "Thành công",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    await LoadRightSidebarContentAsync();
-                }
-                else
-                    MessageBox.Show($"Mute thất bại ({(int)res.StatusCode}).", "Lỗi",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Lỗi: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private async Task UnmuteMemberAsync(string memberId, string memberName)
-        {
-            try
-            {
-                var http = ApiClient.Instance.GetHttpClient();
-                // Đặt BannedUntil = quá khứ để unmute
-                var payload = System.Text.Json.JsonSerializer.Serialize(new
-                {
-                    Role              = (object?)null,
-                    Nickname          = (string?)null,
-                    ShowNotifications = (bool?)null,
-                    BannedUntil       = DateTime.UtcNow.AddSeconds(-1),
-                    EncryptedKey      = (string?)null
-                });
-                var res = await http.PatchAsync(
-                    $"api/conversations/{_activeConvId}/members/{memberId}",
-                    new StringContent(payload, System.Text.Encoding.UTF8, "application/json"));
-
-                if (res.IsSuccessStatusCode)
-                {
-                    MessageBox.Show($"Đã bỏ mute {memberName}.", "Thành công",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    await LoadRightSidebarContentAsync();
-                }
-                else
-                    MessageBox.Show($"Bỏ mute thất bại ({(int)res.StatusCode}).", "Lỗi",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Lỗi: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private async Task KickMemberAsync(string memberId, string memberName)
-        {
-            var confirm = MessageBox.Show(
-                $"Kick {memberName} khỏi nhóm?",
-                "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
-            if (confirm != DialogResult.Yes) return;
-
-            try
-            {
-                var http = ApiClient.Instance.GetHttpClient();
-                var res = await http.DeleteAsync(
-                    $"api/conversations/{_activeConvId}/members/{memberId}");
-
-                if (res.IsSuccessStatusCode)
-                {
-                    MessageBox.Show($"Đã kick {memberName} khỏi nhóm.", "Thành công",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    await LoadRightSidebarContentAsync();
-                }
-                else
-                    MessageBox.Show($"Kick thất bại ({(int)res.StatusCode}).", "Lỗi",
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Lỗi: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
         private static void AppendCenteredLabel(Panel body, string text, Font font, Color color, ref int y)
         {
-            int maxW = Math.Max(200, body.ClientSize.Width - 40);
             var lbl = new Label
             {
                 Text = text,
                 Font = font,
                 ForeColor = color,
                 TextAlign = ContentAlignment.MiddleCenter,
-                Size = new Size(maxW, 0),
+                Size = new Size(280, 0),
                 AutoSize = true,
                 BackColor = Color.Transparent,
-                MaximumSize = new Size(maxW, 0)
+                MaximumSize = new Size(280, 0)
             };
             if (lbl.Height < 24) lbl.Height = 24;
-            lbl.Location = new Point((body.ClientSize.Width - lbl.Width) / 2, y);
+            lbl.Location = new Point(10, y);
             body.Controls.Add(lbl);
             y += lbl.Height;
         }
@@ -4308,7 +4186,7 @@ namespace SecureChat.Client
             body.Controls.Add(new Panel
             {
                 Height = 1,
-                Width = Math.Max(200, body.ClientSize.Width - 40),
+                Width = 260,
                 BackColor = TG.Divider,
                 Location = new Point(20, y)
             });
@@ -4323,7 +4201,7 @@ namespace SecureChat.Client
                 Font = TG.FontRegular(11f),
                 ForeColor = TG.TextPrimary,
                 AutoSize = true,
-                MaximumSize = new Size(Math.Max(200, body.ClientSize.Width - 48), 0),
+                MaximumSize = new Size(260, 0),
                 BackColor = Color.Transparent,
                 Location = new Point(24, y)
             };
@@ -5036,7 +4914,7 @@ namespace SecureChat.Client
                         Array.Empty<byte>(), Array.Empty<byte>(), durationSec, isOut);
                 }
 
-                const int rightMargin = 30; // tăng để bubble voice lùi sang trái
+                const int rightMargin = 10; // khớp với text bubble: x = ClientSize.Width - bw - 10
                 int voiceLeftOffset = (!isOut && isGroup) ? 44 : 10;
                 const int voiceBubbleW = 300; // cố định, KHÔNG co giãn theo panel.Width
 
@@ -5695,7 +5573,7 @@ namespace SecureChat.Client
                 MaximizeBox = false,
                 MinimizeBox = false,
                 ShowIcon = false,
-                BackColor = Color.White,
+                BackColor = TG.SidebarBg,
                 Font = TG.FontRegular(10f)
             };
 
@@ -6268,14 +6146,14 @@ namespace SecureChat.Client
                 {
                     Height = itemH,
                     Dock = DockStyle.Top,
-                    BackColor = Color.White,
+                    BackColor = TG.SidebarBg,
                     Cursor = Cursors.Hand,
                     Tag = pid,
                 };
 
                 // Hover highlight
-                item.MouseEnter += (_, __) => item.BackColor = Color.FromArgb(0xF0, 0xF0, 0xF0);
-                item.MouseLeave += (_, __) => item.BackColor = Color.White;
+                item.MouseEnter += (_, __) => item.BackColor = TG.SidebarHover;
+                item.MouseLeave += (_, __) => item.BackColor = TG.SidebarBg;
 
                 // Sender name
                 int itemTextW = Math.Max(50, _pnlPinnedBar.Width - 56);
@@ -6589,10 +6467,6 @@ namespace SecureChat.Client
             };
             _signalRClient.ConversationUpdated += async (convId, version) =>
             {
-                if (_convVersions.TryGetValue(convId, out var localV) && version < localV)
-                    return;
-                _convVersions[convId] = version;
-
                 var (ok, conv, _) = await _messageService.GetConversationAsync(convId);
                 if (!ok || conv is null) return;
                 BeginInvoke(new Action(() =>
@@ -6606,11 +6480,13 @@ namespace SecureChat.Client
                     if (!old.IsGroup && !string.IsNullOrWhiteSpace(conv.OtherUserId))
                         _convOtherUserId[convId] = conv.OtherUserId;
 
+                    // Always refresh avatar URL for all conversations (both active and inactive)
                     if (!string.IsNullOrWhiteSpace(conv.AvatarURL))
                     {
                         _ = RefreshAvatarForConversationAsync(convId, conv.AvatarURL);
                     }
 
+                    // Update chat header if active
                     if (_activeConvId == convId)
                     {
                         _lblChatName.Text = display;
@@ -6618,26 +6494,6 @@ namespace SecureChat.Client
                         if (!old.IsGroup && _convOtherUserId.TryGetValue(_activeConvId, out var otherId))
                             _ = _signalRClient?.QueryUserPresenceAsync(otherId);
                     }
-                    BuildConvList();
-                }));
-            };
-            _signalRClient.GroupSettingsUpdated += async (convId, version) =>
-            {
-                if (_convVersions.TryGetValue(convId, out var localV) && version < localV)
-                    return;
-                _convVersions[convId] = version;
-
-                var (ok, conv, _) = await _messageService.GetConversationAsync(convId);
-                if (!ok || conv is null) return;
-                BeginInvoke(new Action(() =>
-                {
-                    var idx = _convs.FindIndex(c => c.Id == convId);
-                    if (idx < 0) return;
-                    var old = _convs[idx];
-                    string display = !string.IsNullOrWhiteSpace(conv.Name) ? conv.Name! : (old.IsGroup ? "Group" : "Conversation");
-                    _convs[idx] = (convId, display, old.Preview, old.Time, old.Unread, old.IsGroup);
-                    if (_activeConvId == convId)
-                        _lblChatName.Text = display;
                     BuildConvList();
                 }));
             };
@@ -6704,9 +6560,9 @@ namespace SecureChat.Client
                         _ = LoadRightSidebarContentAsync();
                 }));
             };
-            _signalRClient.UserStatusChanged += async (userId, status, lastSeenUtc) =>
+            _signalRClient.UserPresenceChanged += async (userId, isOnline, lastSeenUtc) =>
             {
-                _userPresence[userId] = (status == "Online", lastSeenUtc);
+                _userPresence[userId] = (isOnline, lastSeenUtc);
 
                 BeginInvoke(new Action(() =>
                 {
@@ -6775,7 +6631,6 @@ namespace SecureChat.Client
             };
             _signalRClient.Closed += async _ =>
             {
-                if (_isLoggingOut) return;
                 BeginInvoke(new Action(() =>
                 {
                     MessageBox.Show(this, "Connection to server lost. Please re-login.", "Disconnected",
@@ -7868,14 +7723,14 @@ namespace SecureChat.Client
 
         private sealed class ChatMenuColorTable : ProfessionalColorTable
         {
-            public override Color MenuItemSelected => Color.FromArgb(0xF2, 0xF5, 0xF9);
-            public override Color MenuItemBorder => Color.FromArgb(0xD9, 0xE1, 0xEB);
-            public override Color ToolStripDropDownBackground => Color.White;
-            public override Color SeparatorDark => Color.FromArgb(0xEA, 0xEE, 0xF3);
-            public override Color SeparatorLight => Color.FromArgb(0xEA, 0xEE, 0xF3);
-            public override Color ImageMarginGradientBegin => Color.White;
-            public override Color ImageMarginGradientMiddle => Color.White;
-            public override Color ImageMarginGradientEnd => Color.White;
+            public override Color MenuItemSelected           => TG.SidebarHover;
+            public override Color MenuItemBorder             => TG.Divider;
+            public override Color ToolStripDropDownBackground => TG.SidebarBg;
+            public override Color SeparatorDark              => TG.Divider;
+            public override Color SeparatorLight             => TG.Divider;
+            public override Color ImageMarginGradientBegin   => TG.SidebarBg;
+            public override Color ImageMarginGradientMiddle  => TG.SidebarBg;
+            public override Color ImageMarginGradientEnd     => TG.SidebarBg;
         }
 
         private Image LoadAndTintIcon(string fileName, Color tint)
