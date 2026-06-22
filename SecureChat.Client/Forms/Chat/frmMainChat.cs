@@ -3704,7 +3704,6 @@ namespace SecureChat.Client
             }
 
             _pnlMessages.BackColor = TG.ChatBg;
-            _pnlMessages.CachedWallpaper = null;
             if (_pnlChat != null) _pnlChat.BackColor = TG.ChatBg;
 
             foreach (Control c in _pnlMessages.Controls)
@@ -3769,6 +3768,8 @@ namespace SecureChat.Client
             // không phải qua Paint event → phải BuildMessages() lại để tạo lại Panel mới.
             if (_allMsgs.TryGetValue(_activeConvId ?? "", out _))
                 BuildMessages();
+
+            UpdateCachedBackground();
         }
 
         private void UpdateSettingsHeaderUI()
