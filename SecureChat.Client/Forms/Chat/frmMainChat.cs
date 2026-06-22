@@ -3620,6 +3620,11 @@ namespace SecureChat.Client
             // Settings menu body
             if (_pnlSettingsMenu != null) _pnlSettingsMenu.BackColor = TG.SidebarBg;
 
+            // Search box + empty state
+            _tbSearch?.OnThemeChanged();
+            if (_pnlEmptyState != null) _pnlEmptyState.BackColor = TG.SidebarBg;
+            if (_lblEmptyState != null) _lblEmptyState.ForeColor = TG.TextSecondary;
+
             // Refresh toàn bộ settings menu rows (pnlMenuList + từng row + label)
             if (_pnlSettingsMenuList != null)
             {
@@ -3650,6 +3655,7 @@ namespace SecureChat.Client
                 }
             }
                 _lblChatEmpty.BackColor = Color.FromArgb(220, TG.WindowBg.R, TG.WindowBg.G, TG.WindowBg.B);
+                _lblChatEmpty.ForeColor = TG.TextSecondary;
 
             // Chat header (title bar top)
             if (_pnlChatHeader != null)
@@ -3664,11 +3670,7 @@ namespace SecureChat.Client
 
             // Input bar
             if (_pnlInputBar != null) _pnlInputBar.BackColor = TG.WindowBg;
-            if (_tbMessage != null)
-            {
-                _tbMessage.BackColor = TG.InputBg;
-                _tbMessage.ForeColor = TG.TextPrimary;
-            }
+            _tbMessage?.OnThemeChanged();
 
             // Right sidebar
             if (_pnlRightSidebar != null) _pnlRightSidebar.BackColor = TG.WindowBg;

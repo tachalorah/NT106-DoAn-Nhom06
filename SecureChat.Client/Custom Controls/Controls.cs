@@ -337,6 +337,16 @@ namespace SecureChat.Client
             SetStyle(ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
         }
 
+        public void OnThemeChanged()
+        {
+            _tb.BackColor = TG.InputBg;
+            _tb.ForeColor = TG.TextPrimary;
+            _placeholderLabel.ForeColor = TG.TextHint;
+            _btnTogglePassword.ForeColor = TG.TextHint;
+            BackColor = TG.InputBg;
+            Invalidate();
+        }
+
         public void SetPlaceholder(string text)
         {
             _placeholder = text;
